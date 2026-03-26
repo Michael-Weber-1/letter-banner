@@ -1,0 +1,104 @@
+[build-system]
+requires      = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+# ---------------------------------------------------------------------------
+# Project metadata
+# ---------------------------------------------------------------------------
+[project]
+name        = "letter-banner"
+version     = "1.0.0"
+description = "Printable letter banner generator — one big decorative letter per page, output as HTML and PDF."
+readme      = "README.md"
+license     = { file = "LICENSE" }
+authors     = [{ name = "letter-banner contributors" }]
+keywords    = [
+    "banner", "letters", "print", "poster", "party", "pdf",
+    "html", "typography", "decoration",
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: End Users/Desktop",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Graphics",
+    "Topic :: Printing",
+    "Topic :: Text Processing :: Markup :: HTML",
+]
+requires-python = ">=3.9"
+
+# No hard runtime dependencies — everything optional
+dependencies = []
+
+[project.optional-dependencies]
+pdf   = ["weasyprint>=60.0"]
+image = ["Pillow>=10.0"]
+heic  = ["Pillow>=10.0", "pillow-heif>=0.13"]
+all   = ["weasyprint>=60.0", "Pillow>=10.0", "pillow-heif>=0.13"]
+dev   = [
+    "weasyprint>=60.0",
+    "Pillow>=10.0",
+    "pillow-heif>=0.13",
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "ruff>=0.1",
+    "mypy>=1.6",
+]
+
+[project.urls]
+Homepage      = "https://github.com/your-username/letter-banner"
+Documentation = "https://github.com/your-username/letter-banner#readme"
+Repository    = "https://github.com/your-username/letter-banner"
+"Bug Tracker" = "https://github.com/your-username/letter-banner/issues"
+Changelog     = "https://github.com/your-username/letter-banner/blob/main/CHANGELOG.md"
+
+[project.scripts]
+letter-banner = "letter_banner.cli:main"
+
+# ---------------------------------------------------------------------------
+# Tool configuration
+# ---------------------------------------------------------------------------
+[tool.setuptools.packages.find]
+where = ["."]
+
+[tool.setuptools.package-data]
+letter_banner = ["py.typed"]
+
+# ── Ruff (linter + formatter) ────────────────────────────────────────────────
+[tool.ruff]
+target-version = "py39"
+line-length    = 100
+select         = ["E", "F", "W", "I", "UP", "B", "C4", "SIM"]
+ignore         = ["E501"]   # line-length handled by formatter
+
+[tool.ruff.format]
+quote-style = "double"
+
+# ── Mypy ─────────────────────────────────────────────────────────────────────
+[tool.mypy]
+python_version         = "3.9"
+strict                 = false
+ignore_missing_imports = true
+warn_return_any        = true
+warn_unused_ignores    = true
+
+# ── Pytest ────────────────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+testpaths    = ["tests"]
+addopts      = "--tb=short -q"
+filterwarnings = ["ignore::DeprecationWarning"]
+
+# ── Coverage ──────────────────────────────────────────────────────────────────
+[tool.coverage.run]
+source   = ["letter_banner"]
+omit     = ["tests/*", "examples/*"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
