@@ -234,7 +234,7 @@ def _build_page_html(
     theme = palette[idx % len(palette)]
 
     # Page background + dot colour
-    bg        = theme.bg        if cfg.mode != "outline" else cfg.outline_bg
+    bg        = cfg.bg_override if cfg.bg_override else (theme.bg if cfg.mode != "outline" else cfg.outline_bg)
     dot_color = theme.dot       if cfg.mode != "outline" else "#cccccc"
     lbl_color = theme.stroke    if cfg.mode != "outline" else cfg.outline_color
 
