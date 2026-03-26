@@ -395,7 +395,7 @@ letter-banner "TEST" --mode image --images ./photos/ --image-seed 99
 ## Development
 
 ```bash
-git clone https://github.com/your-username/letter-banner.git
+git clone https://github.com/Michael-Weber-1/letter-banner.git
 cd letter-banner
 pip install -e ".[dev]"
 pytest
