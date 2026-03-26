@@ -58,6 +58,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     # ── Image ─────────────────────────────────────────────────────────────────
+
+    p.add_argument(
+      "--bg", default="", 
+      metavar="HEX", 
+      dest="bg_override", 
+      help="Override page background colour, e.g. #ffffff",
+    )
+
     p.add_argument(
         "--images", "-i",
         default=None,
