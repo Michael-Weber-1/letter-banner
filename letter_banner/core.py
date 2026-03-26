@@ -41,6 +41,8 @@ class BannerConfig:
     arguments and pass it straight to :func:`save_banner`.
     """
 
+    bg_override: str = ""
+
     # ── Fill mode ────────────────────────────────────────────────────────────
     mode: Literal["color", "outline", "image"] = "color"
     """
