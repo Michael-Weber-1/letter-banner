@@ -52,11 +52,11 @@ dev   = [
 ]
 
 [project.urls]
-Homepage      = "https://github.com/your-username/letter-banner"
-Documentation = "https://github.com/your-username/letter-banner#readme"
-Repository    = "https://github.com/your-username/letter-banner"
-"Bug Tracker" = "https://github.com/your-username/letter-banner/issues"
-Changelog     = "https://github.com/your-username/letter-banner/blob/main/CHANGELOG.md"
+Homepage      = "https://github.com/Michael-Weber-1/letter-banner"
+Documentation = "https://github.com/Michael-Weber-1/letter-banner#readme"
+Repository    = "https://github.com/Michael-Weber-1/letter-banner"
+"Bug Tracker" = "https://github.com/Michael-Weber-1/letter-banner/issues"
+Changelog     = "https://github.com/Michael-Weber-1/letter-banner/blob/main/CHANGELOG.md"
 
 [project.scripts]
 letter-banner = "letter_banner.cli:main"
