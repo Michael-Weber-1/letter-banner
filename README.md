@@ -1,6 +1,6 @@
 # 🔤 letter-banner
 
-<!-- 
+<!--
 [![CI](https://github.com/Michael-Weber-1/letter-banner/actions/workflows/ci.yml/badge.svg)](https://github.com/Michael-Weber-1/letter-banner/actions)
 [![PyPI](https://img.shields.io/pypi/v/letter-banner.svg)](https://pypi.org/project/letter-banner/)
 [![Python](https://img.shields.io/pypi/pyversions/letter-banner.svg)](https://pypi.org/project/letter-banner/)
@@ -190,7 +190,7 @@ letter-banner "SPRING" --mode outline --outline-color "#cc0055" --outline-bg "#f
 | Option | Default | Description |
 |---|---|---|
 | `--outline-color` | `#222222` | Stroke colour |
-| `--outline-width` | `16` | Stroke width in px |
+| `--outline-width` | `4` | Stroke width (3=hairline 4=thin 8=medium 16=bold 24=heavy) |
 | `--outline-bg` | `#ffffff` | Page background colour |
 
 ### `image`
@@ -484,7 +484,7 @@ class BannerConfig:
 
     # Typography
     font:      str   = "bold"   # preset key or Google Font name
-    font_size: float = 0.82     # fraction of page height
+    font_size: float = 0.95     # fraction of page height (0 < font_size ≤ 2.0)
 
     # Decorations
     decoration:  str   = "dots"

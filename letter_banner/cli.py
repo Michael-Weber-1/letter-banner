@@ -96,10 +96,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "--outline-width",
-        default=16,
+        default=4,
         type=int,
         metavar="PX",
-        help="Stroke width in px for outline mode  (default: 16)",
+        help="Stroke width for outline mode — 3=hairline 4=thin(default) 8=medium 16=bold 24=heavy",
     )
     p.add_argument(
         "--outline-bg",
@@ -131,10 +131,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "--font-size",
-        default=0.82,
+        default=0.95,
         type=float,
         metavar="FRACTION",
-        help="Letter height as fraction of page height, e.g. 0.82  (default: 0.82)",
+        help="Letter height as fraction of page height  (default: 0.95 — use 1.0–1.3 for bigger)",
     )
 
     # ── Decoration ────────────────────────────────────────────────────────────
