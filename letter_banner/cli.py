@@ -193,6 +193,41 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print the letter as a small caption at the bottom of each page.",
     )
 
+    # ── Shortcuts ─────────────────────────────────────────────────────────────
+    shortcuts = p.add_argument_group(
+        "shortcuts",
+        "Single-flag presets — each sets several options at once. "
+        "Any individual flag that follows will override the shortcut.",
+    )
+    shortcuts.add_argument(
+        "--clean", "-C",
+        action="store_true",
+        help=(
+            "Letter outline only — no fill, no background, no decoration. "
+            "Equivalent to: --mode outline --page-bg transparent "
+            "--deco none --dot-opacity 0"
+        ),
+    )
+    shortcuts.add_argument(
+        "--clean-white", "-W",
+        action="store_true",
+        dest="clean_white",
+        help=(
+            "Letter outline on a plain white page — no decoration. "
+            "Equivalent to: --mode outline --page-bg '#ffffff' "
+            "--deco none --dot-opacity 0"
+        ),
+    )
+    shortcuts.add_argument(
+        "--filled", "-F",
+        action="store_true",
+        help=(
+            "Solid colour letter on a plain white page — no decoration. "
+            "Equivalent to: --mode color --page-bg '#ffffff' "
+            "--deco none --dot-opacity 0"
+        ),
+    )
+
     # ── Info ──────────────────────────────────────────────────────────────────
     p.add_argument(
         "--list-palettes",
@@ -230,6 +265,24 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.mode == "image" and not args.image_source:
         parser.error("--mode image requires --images FILE_OR_DIR")
+
+    # ── Apply shortcut presets (individual flags below override these) ────────
+    if args.clean:
+        if args.mode        == "color":    args.mode        = "outline"
+        if args.page_bg     == "":         args.page_bg     = "transparent"
+        if args.decoration  == "dots":     args.decoration  = "none"
+        if args.dot_opacity == 0.15:       args.dot_opacity = 0.0
+
+    if args.clean_white:
+        if args.mode        == "color":    args.mode        = "outline"
+        if args.page_bg     == "":         args.page_bg     = "#ffffff"
+        if args.decoration  == "dots":     args.decoration  = "none"
+        if args.dot_opacity == 0.15:       args.dot_opacity = 0.0
+
+    if args.filled:
+        if args.page_bg     == "":         args.page_bg     = "#ffffff"
+        if args.decoration  == "dots":     args.decoration  = "none"
+        if args.dot_opacity == 0.15:       args.dot_opacity = 0.0
 
     cfg = BannerConfig(
         mode           = args.mode,

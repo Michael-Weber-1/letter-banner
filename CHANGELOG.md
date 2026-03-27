@@ -10,6 +10,13 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [Unreleased]
 
 ### Added
+- `--clean` / `-C` shortcut: outline mode, transparent background, no decoration — one flag only
+- `--clean-white` / `-W` shortcut: outline mode, white background, no decoration
+- `--filled` / `-F` shortcut: solid colour letter, white background, no decoration
+- Shortcuts can be overridden by any individual flag that follows them
+- Dual PDF backend: WeasyPrint tried first, **pdfkit + wkhtmltopdf** automatic fallback
+  — fixes `libgobject` crash on Windows; no GTK installation required
+- New example `examples/letter_only.py` covering all clean/outline output variants
 - `--page-bg` CLI flag and `BannerConfig.page_bg` field to override the page
   background colour on every letter page
 - Use `--page-bg "#ffffff" --deco none --dot-opacity 0` for a clean white page
@@ -20,7 +27,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
-## [1.0.0] – 2026-03-27
+## [1.0.0] – 2026-03-26
 
 ### Added
 - **Three fill modes**: `color`, `outline`, `image`

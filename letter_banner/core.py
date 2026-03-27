@@ -388,37 +388,10 @@ def generate_html(
 # PDF generation
 # ---------------------------------------------------------------------------
 
-def generate_pdf(html: str, output_path: str | Path) -> None:
-    """
-    Render an HTML string to a PDF file using `WeasyPrint
-    <https://weasyprint.org>`_.
-
-    Parameters
-    ----------
-    html        : Complete HTML document string (from :func:`generate_html`).
-    output_path : Destination ``.pdf`` file path.
-
-    Raises
-    ------
-    ImportError
-        If WeasyPrint is not installed.
-
-    Notes
-    -----
-    **macOS**: ``brew install pango``
-
-    **Linux**: ``sudo apt install libpango-1.0-0 libpangocairo-1.0-0``
-    """
-    try:
-        from weasyprint import HTML as WP_HTML, CSS
-        from weasyprint.text.fonts import FontConfiguration
-    except ImportError as exc:
-        raise ImportError(
-            "WeasyPrint is required for PDF output.\n"
-            "Install:  pip install weasyprint\n"
-            "macOS:    brew install pango\n"
-            "Linux:    sudo apt install libpango-1.0-0 libpangocairo-1.0-0"
-        ) from exc
+def _pdf_via_weasyprint(html: str, output_path: Path) -> None:
+    """Render HTML → PDF using WeasyPrint."""
+    from weasyprint import HTML as WP_HTML, CSS          # noqa: PLC0415
+    from weasyprint.text.fonts import FontConfiguration  # noqa: PLC0415
 
     font_config = FontConfiguration()
     reset_css   = CSS(
@@ -429,6 +402,107 @@ def generate_pdf(html: str, output_path: str | Path) -> None:
         str(output_path),
         stylesheets=[reset_css],
         font_config=font_config,
+    )
+
+
+def _pdf_via_pdfkit(html: str, output_path: Path) -> None:
+    """Render HTML → PDF using pdfkit + wkhtmltopdf."""
+    import pdfkit  # noqa: PLC0415
+
+    options = {
+        "page-size":       "Letter",
+        "margin-top":      "0",
+        "margin-right":    "0",
+        "margin-bottom":   "0",
+        "margin-left":     "0",
+        "encoding":        "UTF-8",
+        "enable-local-file-access": "",
+        "no-outline":      "",
+        "print-media-type": "",
+    }
+    pdfkit.from_string(html, str(output_path), options=options)
+
+
+def generate_pdf(html: str, output_path: str | Path) -> None:
+    """
+    Render an HTML string to a PDF file.
+
+    Tries **WeasyPrint** first, then falls back to **pdfkit + wkhtmltopdf**.
+    At least one must be available.
+
+    Parameters
+    ----------
+    html        : Complete HTML document string (from :func:`generate_html`).
+    output_path : Destination ``.pdf`` file path.
+
+    Installation
+    ------------
+    **Option A — WeasyPrint** (recommended on macOS / Linux):
+
+    .. code-block:: bash
+
+        pip install weasyprint
+        # macOS:  brew install pango
+        # Linux:  sudo apt install libpango-1.0-0 libpangocairo-1.0-0
+
+    **Option B — pdfkit** (recommended on Windows):
+
+    .. code-block:: bash
+
+        pip install pdfkit
+        # Then download and install wkhtmltopdf from https://wkhtmltopdf.org/downloads.html
+        # Make sure wkhtmltopdf is on your PATH (restart terminal after install)
+
+    Both can be installed at the same time; WeasyPrint is tried first.
+
+    Raises
+    ------
+    RuntimeError
+        If neither WeasyPrint nor pdfkit is available or functional.
+    """
+    output_path = Path(output_path)
+    errors: list[str] = []
+
+    # ── Try WeasyPrint ───────────────────────────────────────────────────────
+    try:
+        _pdf_via_weasyprint(html, output_path)
+        return
+    except ImportError:
+        errors.append("WeasyPrint not installed  (pip install weasyprint)")
+    except Exception as exc:
+        errors.append(
+            f"WeasyPrint failed: {exc}\n"
+            "  Windows fix: install GTK runtime from "
+            "https://github.com/tschoonj/GTK-for-Windows-Runtime-Environment-Installer/releases\n"
+            "  Or use pdfkit instead: pip install pdfkit + install wkhtmltopdf"
+        )
+
+    # ── Try pdfkit ───────────────────────────────────────────────────────────
+    try:
+        _pdf_via_pdfkit(html, output_path)
+        return
+    except ImportError:
+        errors.append(
+            "pdfkit not installed  (pip install pdfkit)\n"
+            "  Also install wkhtmltopdf from https://wkhtmltopdf.org/downloads.html"
+        )
+    except OSError:
+        errors.append(
+            "pdfkit: wkhtmltopdf not found on PATH.\n"
+            "  Download from https://wkhtmltopdf.org/downloads.html and restart your terminal."
+        )
+    except Exception as exc:
+        errors.append(f"pdfkit failed: {exc}")
+
+    # ── Both failed ──────────────────────────────────────────────────────────
+    msg = "\n\n".join(f"  [{i+1}] {e}" for i, e in enumerate(errors))
+    raise RuntimeError(
+        "PDF generation failed — no working PDF backend found.\n\n"
+        + msg +
+        "\n\nQuick fix on Windows:\n"
+        "  1. pip install pdfkit\n"
+        "  2. Download wkhtmltopdf from https://wkhtmltopdf.org/downloads.html\n"
+        "  3. Install it and restart your terminal.\n"
     )
 
 
@@ -483,7 +557,7 @@ def save_banner(
             generate_pdf(html, pp)
             print(f"[letter-banner] PDF   →  {pp}")
             saved["pdf"] = pp
-        except ImportError as exc:
+        except (ImportError, RuntimeError) as exc:
             print(f"[letter-banner] PDF skipped: {exc}", file=sys.stderr)
 
     return saved

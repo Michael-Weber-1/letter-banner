@@ -183,22 +183,23 @@ class TestSaveBanner:
         assert content.count('class="lb-page"') == 5
 
     def test_no_pdf_without_weasyprint(self, tmp_path, monkeypatch):
-        """save_banner should not crash when WeasyPrint is absent."""
+        """save_banner should not crash when neither PDF backend is available."""
         import builtins
         real_import = builtins.__import__
 
         def mock_import(name, *args, **kwargs):
-            if name == "weasyprint":
+            if name in ("weasyprint", "pdfkit"):
                 raise ImportError("mocked absence")
             return real_import(name, *args, **kwargs)
 
         monkeypatch.setattr(builtins, "__import__", mock_import)
 
+        # generate_pdf will raise RuntimeError; save_banner catches it gracefully
         result = save_banner(
             "A",
             output_basename=str(tmp_path / "out"),
             write_html=True,
-            write_pdf=True,  # requested but should be skipped gracefully
+            write_pdf=True,
         )
         assert "html" in result
         assert "pdf" not in result

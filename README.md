@@ -46,8 +46,21 @@ pip install "letter-banner[heic]"
 pip install "letter-banner[all]"
 ```
 
-> **macOS PDF note:** `brew install pango` is required for WeasyPrint.  
-> **Linux PDF note:** `sudo apt install libpango-1.0-0 libpangocairo-1.0-0`
+> **PDF on Windows** (recommended): install **pdfkit + wkhtmltopdf**
+> ```
+> pip install pdfkit
+> ```
+> Then download and install **wkhtmltopdf** from [wkhtmltopdf.org/downloads.html](https://wkhtmltopdf.org/downloads.html) and restart your terminal.
+>
+> **PDF on macOS / Linux** (recommended): install **WeasyPrint**
+> ```
+> pip install weasyprint
+> brew install pango          # macOS
+> sudo apt install libpango-1.0-0 libpangocairo-1.0-0   # Linux
+> ```
+>
+> Both backends can be installed at the same time — WeasyPrint is tried first,
+> pdfkit is the automatic fallback.
 
 ---
 
@@ -56,11 +69,24 @@ pip install "letter-banner[all]"
 ### CLI
 
 ```bash
-# Colour fill — default mode
+# ── Shortcuts (single flag does everything) ───────────────────────────────
+
+# --clean (-C)       outline only, transparent background, no decoration
+letter-banner "HELLO" --clean
+
+# --clean-white (-W) outline only, white background, no decoration — print & colour in
+letter-banner "KIDS" --clean-white
+
+# --filled (-F)      solid colour letter, white background, no decoration
+letter-banner "SPRING" --filled --palette easter
+
+# ── Common examples ───────────────────────────────────────────────────────
+
+# Colour fill with decoration
 letter-banner "HAPPY BIRTHDAY" --palette vivid --deco festive
 
-# Outline only — great as colouring-in pages for kids
-letter-banner "KIDS" --mode outline --outline-color "#6600cc"
+# Outline with a custom colour
+letter-banner "KIDS" --mode outline --outline-color "#6600cc" --font kids
 
 # Photo fill — single image
 letter-banner "LOVE" --mode image --images rose.jpg
@@ -68,14 +94,11 @@ letter-banner "LOVE" --mode image --images rose.jpg
 # Photo fill — folder of photos (randomly sampled per letter)
 letter-banner "PARTY" --mode image --images ./my-photos/ --grid mosaic
 
-# A4 paper, elegant font, no PDF
-letter-banner "FROHE OSTERN" --paper A4 --font elegant --no-pdf
+# A4 paper, elegant font
+letter-banner "FROHE OSTERN" --paper A4 --font elegant
 
-# Letter only — no background, no decoration (plain white page)
-letter-banner "HELLO" --deco none --dot-opacity 0 --page-bg "#ffffff" --no-pdf
-
-# Letter only — transparent background (useful for overlays)
-letter-banner "HELLO" --deco none --dot-opacity 0 --page-bg "transparent" --no-pdf
+# Clean letter, override outline colour and font
+letter-banner "EASTER" --clean-white --outline-color "#e03060" --font fun --paper A4
 
 # See all options
 letter-banner --help
@@ -162,58 +185,88 @@ letter-banner "WOW" --mode image --images ./photos/ --image-seed 42
 
 ---
 
-## Clean / letter-only output
+## Letter-only output (no background, no decoration)
 
-Use `--page-bg` combined with `--deco none` and `--dot-opacity 0` to strip
-everything away except the letter itself.
+Three shortcuts handle the most common clean-output scenarios in a single flag:
+
+| Shortcut | Short | What it does |
+|---|---|---|
+| `--clean` | `-C` | Outline letter, **transparent** background, no decoration |
+| `--clean-white` | `-W` | Outline letter, **white** background, no decoration |
+| `--filled` | `-F` | Solid colour letter, **white** background, no decoration |
 
 ```bash
-# White page, nothing but the letter
-letter-banner "HELLO" --deco none --dot-opacity 0 --page-bg "#ffffff" --no-pdf
+# Transparent — letter shape only, ideal for overlays / compositing
+letter-banner "HELLO" --clean
 
-# Transparent background — great for overlaying on another document or image
-letter-banner "HELLO" --deco none --dot-opacity 0 --page-bg "transparent" --no-pdf
+# White page — print and colour in, or use as a stencil template
+letter-banner "HELLO" --clean-white
 
-# Outline letter on white — perfect colouring-in page
-letter-banner "KIDS" --mode outline --outline-color "#6600cc" \
-    --deco none --dot-opacity 0 --page-bg "#ffffff" --no-pdf
+# Change the outline colour or font after the shortcut
+letter-banner "KIDS" --clean-white --outline-color "#6600cc" --font kids
 
-# Custom tinted background
-letter-banner "SPRING" --deco none --dot-opacity 0 --page-bg "#f0fff0" --no-pdf
+# Solid colour, no clutter
+letter-banner "SPRING" --filled --palette easter
+
+# A4 colouring-in sheet
+letter-banner "EASTER" --clean-white --paper A4 --font fun
 ```
 
-Python API equivalent:
+Shortcuts set sensible defaults but **any individual flag that follows overrides them**:
+
+```bash
+# --clean sets transparent bg, but we override it to light pink
+letter-banner "LOVE" --clean --page-bg "#fff0f4"
+```
+
+**Python API — letter-only:**
 
 ```python
 from letter_banner import BannerConfig, save_banner
 
-# White page, letter only
+# Transparent background (letter outline only)
 save_banner(
     "HELLO",
     BannerConfig(
-        decoration="none",
-        dot_opacity=0,
-        page_bg="#ffffff",
+        mode        = "outline",
+        page_bg     = "transparent",
+        decoration  = "none",
+        dot_opacity = 0,
     ),
-    write_pdf=False,
 )
 
-# Transparent background
+# White background — colouring-in page
 save_banner(
-    "HELLO",
+    "KIDS",
     BannerConfig(
-        decoration="none",
-        dot_opacity=0,
-        page_bg="transparent",
+        mode          = "outline",
+        page_bg       = "#ffffff",
+        decoration    = "none",
+        dot_opacity   = 0,
+        outline_color = "#6600cc",
+        outline_width = 20,
+        font          = "kids",
     ),
-    write_pdf=False,
+)
+
+# Solid colour, white page, no decoration
+save_banner(
+    "SPRING",
+    BannerConfig(
+        mode         = "color",
+        palette_name = "easter",
+        page_bg      = "#ffffff",
+        decoration   = "none",
+        dot_opacity  = 0,
+    ),
 )
 ```
 
-> **Tip:** `--page-bg` accepts any CSS colour value — hex (`#ffffff`),
+> **See also:** `examples/letter_only.py` for a full set of letter-only examples
+> with inline CLI equivalents for every variant.
+
+> **Tip:** `--page-bg` accepts any CSS colour — hex (`#ffffff`),
 > named colours (`white`, `transparent`), or `rgb()`/`hsl()` strings.
-> It overrides the palette background on every page, so all other palette
-> colours (fill, stroke) still apply normally.
 
 ---
 
@@ -428,7 +481,8 @@ resolve_font("kids") -> "Baloo 2"
 4. Print or save as PDF.
 
 For best results with colour pages, use a colour printer and matte or glossy
-paper.  Outline mode pages work great on plain paper for colouring-in.
+paper.  Outline / `--clean-white` pages work great on plain paper for colouring-in
+and can be used as stencil templates.
 
 ---
 
@@ -444,8 +498,21 @@ letter-banner "FROHE OSTERN" --palette easter --paper A4
 # Minimal wedding favour tags
 letter-banner "MR AND MRS SMITH" --palette wedding --font elegant --deco minimal
 
-# Colouring-in Halloween pages for kids
-letter-banner "BOO" --mode outline --outline-color "#550077" --deco none --font fun
+# ── Letter-only shortcuts ─────────────────────────────────────────────────────
+
+# Colouring-in pages for kids — one command
+letter-banner "BOO" --clean-white --outline-color "#550077" --font fun
+
+# Transparent letter — overlay on a photo or coloured card
+letter-banner "JOY" --clean
+
+# Stencil template — thin outline, condensed font, easy to cut out
+letter-banner "CUT" --clean-white --outline-width 8 --font condensed
+
+# Solid colour, no clutter, A4
+letter-banner "SPRING" --filled --palette easter --paper A4
+
+# ── Photo banners ─────────────────────────────────────────────────────────────
 
 # Photo banner from iPhone photos (HEIC)
 letter-banner "JUNE" --mode image --images ./iphone-photos/ --grid mosaic --deco festive

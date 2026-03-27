@@ -92,3 +92,31 @@ class TestCLI:
         assert rc == 0
         html = (tmp_path / "out.html").read_text()
         assert "transparent" in html
+
+    def test_shortcut_clean(self, tmp_path):
+        rc = main(["A", "--clean", "--no-pdf", "-o", str(tmp_path / "out")])
+        assert rc == 0
+        html = (tmp_path / "out.html").read_text()
+        assert "transparent" in html
+        assert "transparent" in html
+
+    def test_shortcut_clean_white(self, tmp_path):
+        rc = main(["A", "--clean-white", "--no-pdf", "-o", str(tmp_path / "out")])
+        assert rc == 0
+        html = (tmp_path / "out.html").read_text()
+        assert "#ffffff" in html
+
+    def test_shortcut_filled(self, tmp_path):
+        rc = main(["A", "--filled", "--palette", "vivid",
+                   "--no-pdf", "-o", str(tmp_path / "out")])
+        assert rc == 0
+        html = (tmp_path / "out.html").read_text()
+        assert "#ffffff" in html
+
+    def test_shortcut_overridden_by_explicit_flag(self, tmp_path):
+        # --clean sets transparent, but --page-bg overrides it
+        rc = main(["A", "--clean", "--page-bg", "#ff0000",
+                   "--no-pdf", "-o", str(tmp_path / "out")])
+        assert rc == 0
+        html = (tmp_path / "out.html").read_text()
+        assert "#ff0000" in html
