@@ -142,6 +142,19 @@ class TestGenerateHtml:
         html = generate_html("X")
         assert 'class="lb-label"' not in html
 
+    def test_page_bg_override(self):
+        html = generate_html("X", BannerConfig(page_bg="#ff0000"))
+        assert "background:#ff0000" in html
+
+    def test_page_bg_transparent(self):
+        html = generate_html("X", BannerConfig(page_bg="transparent"))
+        assert "background:transparent" in html
+
+    def test_page_bg_default_uses_palette(self):
+        # When page_bg is empty, palette bg should be used (not literal "")
+        html = generate_html("X", BannerConfig(page_bg=""))
+        assert "background:;" not in html
+
 
 # ---------------------------------------------------------------------------
 # save_banner

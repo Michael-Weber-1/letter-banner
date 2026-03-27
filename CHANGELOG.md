@@ -7,7 +7,20 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
-## [1.0.0] – 2024-01-01
+## [Unreleased]
+
+### Added
+- `--page-bg` CLI flag and `BannerConfig.page_bg` field to override the page
+  background colour on every letter page
+- Use `--page-bg "#ffffff" --deco none --dot-opacity 0` for a clean white page
+  with just the letter
+- Use `--page-bg "transparent"` for a fully transparent background suitable
+  for overlays and compositing
+- New "Clean / letter-only output" section in README with full examples
+
+---
+
+## [1.0.0] – 2026-03-27
 
 ### Added
 - **Three fill modes**: `color`, `outline`, `image`
@@ -30,4 +43,4 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Self-contained HTML output (images base64-embedded)
 - GitHub Actions CI: lint, multi-OS tests (Python 3.9–3.12), PyPI publish
 
-[1.0.0]: https://github.com/your-username/letter-banner/releases/tag/v1.0.0
+[1.0.0]: https://github.com/Michael-Weber-1/letter-banner/releases/tag/v1.0.0

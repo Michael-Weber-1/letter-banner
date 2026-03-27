@@ -58,14 +58,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     # ── Image ─────────────────────────────────────────────────────────────────
-
-    p.add_argument(
-      "--bg", default="", 
-      metavar="HEX", 
-      dest="bg_override", 
-      help="Override page background colour, e.g. #ffffff",
-    )
-
     p.add_argument(
         "--images", "-i",
         default=None,
@@ -114,6 +106,17 @@ def build_parser() -> argparse.ArgumentParser:
         default="#ffffff",
         metavar="HEX",
         help="Background colour for outline mode  (default: #ffffff)",
+    )
+    p.add_argument(
+        "--page-bg",
+        default="",
+        metavar="CSS_COLOUR",
+        dest="page_bg",
+        help=(
+            "Override the page background for every letter. "
+            "Use '#ffffff' for white, 'transparent' for no background. "
+            "Combine with --deco none --dot-opacity 0 to show only the letter."
+        ),
     )
 
     # ── Typography ────────────────────────────────────────────────────────────
@@ -244,6 +247,7 @@ def main(argv: list[str] | None = None) -> int:
         dot_opacity    = args.dot_opacity,
         paper          = args.paper,
         show_label     = args.show_label,
+        page_bg        = args.page_bg,
     )
 
     try:

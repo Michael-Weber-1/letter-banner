@@ -41,8 +41,6 @@ class BannerConfig:
     arguments and pass it straight to :func:`save_banner`.
     """
 
-    bg_override: str = ""
-
     # ── Fill mode ────────────────────────────────────────────────────────────
     mode: Literal["color", "outline", "image"] = "color"
     """
@@ -110,6 +108,16 @@ class BannerConfig:
     # ── Page layout ──────────────────────────────────────────────────────────
     paper: str = "letter"
     """Paper size key.  One of: ``"letter"``, ``"A4"``, ``"A3"``, ``"legal"``, ``"tabloid"``."""
+
+    # ── Page background override ─────────────────────────────────────────────
+    page_bg: str = ""
+    """
+    Override the page background colour for every letter page.
+    Any CSS colour works: ``"#ffffff"``, ``"white"``, ``"transparent"``.
+    Default ``""`` uses the palette theme ``bg`` colour.
+    Use ``"transparent"`` with ``decoration="none"`` and ``dot_opacity=0``
+    to produce a page that contains nothing but the letter itself.
+    """
 
     # ── Extras ───────────────────────────────────────────────────────────────
     show_label:  bool = False
@@ -236,7 +244,8 @@ def _build_page_html(
     theme = palette[idx % len(palette)]
 
     # Page background + dot colour
-    bg        = cfg.bg_override if cfg.bg_override else (theme.bg if cfg.mode != "outline" else cfg.outline_bg)
+    _default_bg = theme.bg if cfg.mode != "outline" else cfg.outline_bg
+    bg           = cfg.page_bg if cfg.page_bg else _default_bg
     dot_color = theme.dot       if cfg.mode != "outline" else "#cccccc"
     lbl_color = theme.stroke    if cfg.mode != "outline" else cfg.outline_color
 

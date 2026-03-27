@@ -7,7 +7,6 @@
 -->
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-
 **Generate printable letter banners for any occasion — one big decorative letter per page, saved as HTML and PDF.**
 
 Perfect for birthdays, holidays, school events, weddings, graduations, baby showers, and anything else worth hanging on a wall.
@@ -71,6 +70,12 @@ letter-banner "PARTY" --mode image --images ./my-photos/ --grid mosaic
 
 # A4 paper, elegant font, no PDF
 letter-banner "FROHE OSTERN" --paper A4 --font elegant --no-pdf
+
+# Letter only — no background, no decoration (plain white page)
+letter-banner "HELLO" --deco none --dot-opacity 0 --page-bg "#ffffff" --no-pdf
+
+# Letter only — transparent background (useful for overlays)
+letter-banner "HELLO" --deco none --dot-opacity 0 --page-bg "transparent" --no-pdf
 
 # See all options
 letter-banner --help
@@ -154,6 +159,61 @@ letter-banner "WOW" --mode image --images ./photos/ --image-seed 42
 | `diagonal` | Diagonal bands |
 | `mosaic` | Asymmetric magazine-style layout (default) |
 | `random` | Randomly picks a different style per letter |
+
+---
+
+## Clean / letter-only output
+
+Use `--page-bg` combined with `--deco none` and `--dot-opacity 0` to strip
+everything away except the letter itself.
+
+```bash
+# White page, nothing but the letter
+letter-banner "HELLO" --deco none --dot-opacity 0 --page-bg "#ffffff" --no-pdf
+
+# Transparent background — great for overlaying on another document or image
+letter-banner "HELLO" --deco none --dot-opacity 0 --page-bg "transparent" --no-pdf
+
+# Outline letter on white — perfect colouring-in page
+letter-banner "KIDS" --mode outline --outline-color "#6600cc" \
+    --deco none --dot-opacity 0 --page-bg "#ffffff" --no-pdf
+
+# Custom tinted background
+letter-banner "SPRING" --deco none --dot-opacity 0 --page-bg "#f0fff0" --no-pdf
+```
+
+Python API equivalent:
+
+```python
+from letter_banner import BannerConfig, save_banner
+
+# White page, letter only
+save_banner(
+    "HELLO",
+    BannerConfig(
+        decoration="none",
+        dot_opacity=0,
+        page_bg="#ffffff",
+    ),
+    write_pdf=False,
+)
+
+# Transparent background
+save_banner(
+    "HELLO",
+    BannerConfig(
+        decoration="none",
+        dot_opacity=0,
+        page_bg="transparent",
+    ),
+    write_pdf=False,
+)
+```
+
+> **Tip:** `--page-bg` accepts any CSS colour value — hex (`#ffffff`),
+> named colours (`white`, `transparent`), or `rgb()`/`hsl()` strings.
+> It overrides the palette background on every page, so all other palette
+> colours (fill, stroke) still apply normally.
 
 ---
 
@@ -262,6 +322,7 @@ usage: letter-banner [-h] [--mode {color,outline,image}]
                      [--deco {none,minimal,dots,shapes,festive,confetti}]
                      [--dot-opacity 0-1] [--paper {letter,A4,A3,legal,tabloid}]
                      [--output BASENAME] [--no-html] [--no-pdf]
+                     [--page-bg CSS_COLOUR]
                      [--title TITLE] [--label]
                      [--list-palettes] [--list-fonts]
                      [text]
@@ -304,6 +365,9 @@ class BannerConfig:
 
     # Page
     paper: str = "letter"
+
+    # Page background override
+    page_bg: str = ""          # "" = palette default; any CSS colour overrides it
 
     # Extras
     show_label:     bool = False

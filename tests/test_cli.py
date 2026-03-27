@@ -78,3 +78,17 @@ class TestCLI:
         assert rc == 0
         html = (tmp_path / "out.html").read_text()
         assert "My Party" in html
+
+    def test_page_bg_white(self, tmp_path):
+        rc = main(["A", "--page-bg", "#ffffff", "--deco", "none",
+                   "--dot-opacity", "0", "--no-pdf", "-o", str(tmp_path / "out")])
+        assert rc == 0
+        html = (tmp_path / "out.html").read_text()
+        assert "#ffffff" in html
+
+    def test_page_bg_transparent(self, tmp_path):
+        rc = main(["A", "--page-bg", "transparent", "--deco", "none",
+                   "--dot-opacity", "0", "--no-pdf", "-o", str(tmp_path / "out")])
+        assert rc == 0
+        html = (tmp_path / "out.html").read_text()
+        assert "transparent" in html
