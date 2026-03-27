@@ -1,6 +1,6 @@
 # 🔤 letter-banner
 
-<!--
+<!-- 
 [![CI](https://github.com/Michael-Weber-1/letter-banner/actions/workflows/ci.yml/badge.svg)](https://github.com/Michael-Weber-1/letter-banner/actions)
 [![PyPI](https://img.shields.io/pypi/v/letter-banner.svg)](https://pypi.org/project/letter-banner/)
 [![Python](https://img.shields.io/pypi/pyversions/letter-banner.svg)](https://pypi.org/project/letter-banner/)
@@ -34,7 +34,10 @@ Perfect for birthdays, holidays, school events, weddings, graduations, baby show
 # Minimal — HTML output only
 pip install letter-banner
 
-# PDF on Windows (no admin rights needed)
+# PDF on Windows, no admin rights (ReportLab — recommended)
+pip install "letter-banner[pdf-simple]"   # installs xhtml2pdf + ReportLab
+
+# PDF on Windows — best quality (if Chromium download is allowed)
 pip install "letter-banner[pdf-win]"
 playwright install chromium
 
@@ -43,32 +46,42 @@ pip install "letter-banner[pdf]"
 brew install pango          # macOS
 # Linux: sudo apt install libpango-1.0-0 libpangocairo-1.0-0
 
-# PDF anywhere, pure Python (limited CSS, no admin needed)
-pip install "letter-banner[pdf-simple]"
-
 # Image support (resize + HEIC/HEIF)
 pip install "letter-banner[image]"    # or [heic] for HEIC/HEIF
 
 # Everything
 pip install "letter-banner[all]"
-playwright install chromium   # still needed after [all]
+playwright install chromium   # needed for Playwright backend
 ```
 
 ### PDF backend — pick one
 
 The package tries four PDF backends automatically in order. Install whichever suits your setup:
 
-| Backend | Install | Admin needed? | Quality | Best for |
-|---|---|---|---|---|
-| **WeasyPrint** | `pip install weasyprint` + pango | Yes (pango) | ⭐⭐⭐⭐⭐ | macOS / Linux |
-| **Playwright** | `pip install playwright` + `playwright install chromium` | **No** | ⭐⭐⭐⭐⭐ | **Windows (work PC)** |
-| **pdfkit** | `pip install pdfkit` + wkhtmltopdf installer | Yes (wkhtmltopdf) | ⭐⭐⭐⭐ | Windows (personal PC) |
-| **xhtml2pdf** | `pip install xhtml2pdf` | **No** | ⭐⭐⭐ | Any OS, pure Python fallback |
+| Priority | Backend | Install | Admin? | Quality | Best for |
+|---|---|---|---|---|---|
+| 1 | **WeasyPrint** | `pip install weasyprint` + pango | Yes | ⭐⭐⭐⭐⭐ | macOS / Linux |
+| 2 | **Playwright** | `pip install playwright` + `playwright install chromium` | **No** | ⭐⭐⭐⭐⭐ | Windows (personal) |
+| 3 | **pdfkit** | `pip install pdfkit` + wkhtmltopdf | Yes | ⭐⭐⭐⭐ | Windows (personal) |
+| 4 | **ReportLab** | `pip install xhtml2pdf` *(included automatically)* | **No** | ⭐⭐⭐⭐ | **Windows (work PC) — recommended** |
+| 5 | **xhtml2pdf** | `pip install xhtml2pdf` | **No** | ⭐⭐⭐ | Last-resort fallback |
 
-**Windows with no admin rights — use Playwright:**
+> **On Windows with no admin rights:** install `xhtml2pdf` — this automatically
+> installs ReportLab too, which is used as the primary pure-Python backend.
+> ReportLab produces true outline letters (not filled black), correct page size,
+> and one letter per page.
+
+**Windows with no admin rights — recommended:**
+```bash
+pip install xhtml2pdf
+```
+This automatically installs ReportLab, which generates true outline letters
+at the correct size with one letter per page. No downloads, no admin rights.
+
+**Windows — best quality (if Chromium download works on your network):**
 ```bash
 pip install playwright
-playwright install chromium   # downloads ~130 MB to your user folder, no admin needed
+playwright install chromium
 ```
 
 **macOS / Linux — use WeasyPrint:**
@@ -78,14 +91,15 @@ brew install pango                                        # macOS
 sudo apt install libpango-1.0-0 libpangocairo-1.0-0      # Linux
 ```
 
-**Any platform, no downloads at all — use xhtml2pdf:**
+**Any platform, pure Python, no downloads:**
 ```bash
 pip install xhtml2pdf
-# Note: Google Fonts are skipped; letters fall back to a system font.
-# The letter shape and layout print correctly.
+# Automatically installs ReportLab (backend 4) — true outline letters,
+# correct page size, one letter per page. Google Fonts are skipped
+# in PDF but the letter shape and size are correct.
 ```
 
-All four backends can be installed simultaneously — the best available one is used automatically.
+All backends can be installed simultaneously — the best available one is used automatically.
 
 ---
 

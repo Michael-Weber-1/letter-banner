@@ -190,7 +190,7 @@ class TestSaveBanner:
         import builtins
         real_import = builtins.__import__
 
-        _blocked = {"weasyprint", "pdfkit", "xhtml2pdf"}
+        _blocked = {"weasyprint", "pdfkit", "xhtml2pdf", "reportlab"}
 
         def mock_import(name, *args, **kwargs):
             # Block all known PDF backends

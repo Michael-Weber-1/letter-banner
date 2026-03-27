@@ -280,22 +280,27 @@ def _build_svg_letter(
     # Stroke width scales with font size so it looks consistent at any
     # --font-size value. cfg.outline_width acts as a fine-tune multiplier
     # (default 4 ≈ thin; 8 ≈ medium; 16 ≈ bold; 24 ≈ heavy).
-    # Base: ~0.6% of font size; cfg.outline_width shifts around that base.
-    _base_sw  = max(2.0, fs * 0.006)          # e.g. ~6px at 1000px font
-    _scale_sw = _base_sw * (cfg.outline_width / 4.0)  # 4=default → 1×
+    _base_sw  = max(2.0, fs * 0.006)
+    _scale_sw = _base_sw * (cfg.outline_width / 4.0)
     sw        = round(_scale_sw, 1)
 
-    # Color mode uses a fixed proportion for the fill stroke
+    # Color mode stroke
     color_sw = round(max(2.0, fs * 0.008), 1)
 
     if cfg.mode == "outline":
+        # SVG strokes are centred on the path — with fill="none" both the inner
+        # and outer edges of the stroke are visible, creating a "double outline".
+        # Fix: fill the letter interior with the page background colour so only
+        # the outer stroke edge shows.  For transparent backgrounds use "white"
+        # as a sensible default (transparent SVG text fill has no visual effect).
+        _interior = cfg.page_bg if cfg.page_bg and cfg.page_bg != "transparent" else "white"
         text_el = (
             f'<text '
             f'x="{cx:.2f}" y="{baseline:.2f}" '
             f'text-anchor="middle" dominant-baseline="auto" '
             f'font-family="{font_ref}" '
             f'font-size="{fs:.2f}" font-weight="900" '
-            f'fill="none" '
+            f'fill="{_interior}" '
             f'stroke="{cfg.outline_color}" stroke-width="{sw}" '
             f'paint-order="stroke fill">'
             f'{letter}</text>'
@@ -547,31 +552,178 @@ def _pdf_via_playwright(html: str, output_path: Path) -> None:
         browser.close()
 
 
+def _pdf_via_reportlab(html: str, output_path: Path) -> None:
+    """
+    Render letter-banner HTML → PDF using ReportLab directly.
+
+    ReportLab is installed automatically as a dependency of xhtml2pdf,
+    so this backend requires no additional installation beyond xhtml2pdf.
+
+    Advantages over the xhtml2pdf HTML approach:
+    - True outline text (stroke-only rendering mode) — no filled black letters
+    - Exact pt-precise sizing — letter always fills the page
+    - Correct page breaks — one letter per page guaranteed
+    - No SVG, no HTML parsing complexity
+
+    Install:  pip install xhtml2pdf   (pulls in reportlab automatically)
+              pip install reportlab   (or install directly)
+    """
+    import re  # noqa: PLC0415
+    from reportlab.pdfgen import canvas as rl_canvas  # noqa: PLC0415
+    from reportlab.pdfbase import pdfmetrics           # noqa: PLC0415
+    from reportlab.lib.colors import HexColor, white, black, Color  # noqa: PLC0415
+
+    def _hex_to_color(s: str) -> Color:
+        if s in ("transparent", "none", ""):
+            return white
+        if s == "white":
+            return white
+        if s == "black":
+            return black
+        try:
+            return HexColor(s)
+        except Exception:
+            return white
+
+    # ── Extract page data from HTML ──────────────────────────────────────────
+    # Paper size
+    size_m = re.search(r'width:([\d.]+)in;height:([\d.]+)in', html)
+    w_in   = float(size_m.group(1)) if size_m else 8.5
+    h_in   = float(size_m.group(2)) if size_m else 11.0
+    W, H   = w_in * 72, h_in * 72   # inches → pt
+
+    # Parse each .lb-page block
+    page_blocks = re.findall(
+        r'<div class="lb-page" style="([^"]*)">(.*?)</div>',
+        html, re.DOTALL
+    )
+
+    pages: list[dict] = []
+    for style_str, content in page_blocks:
+        # Background colour
+        bg_m = re.search(r'background:([^;]+);', style_str)
+        bg   = bg_m.group(1).strip() if bg_m else "#ffffff"
+
+        # Letter character from SVG text element
+        letter_m = re.search(r'paint-order[^>]*>(.)</text>', content)
+        if not letter_m:
+            letter_m = re.search(r'</text>(.)</text>', content)
+        if not letter_m:
+            letter_m = re.search(r'>([A-Z0-9])</text>', content)
+        letter = letter_m.group(1) if letter_m else "?"
+
+        # Colours from SVG
+        fill_m   = re.search(r'fill="([^"]+)"', content)
+        stroke_m = re.search(r'stroke="([^"]+)"', content)
+        fill_col   = fill_m.group(1)   if fill_m   else "#ffffff"
+        stroke_col = stroke_m.group(1) if stroke_m else "#222222"
+
+        # Mode: if fill matches bg or is white → outline mode
+        mode = "outline" if fill_col in (bg, "white", "#ffffff", "none") else "color"
+
+        pages.append({
+            "letter":     letter,
+            "bg":         bg,
+            "fill":       fill_col,
+            "stroke":     stroke_col,
+            "mode":       mode,
+        })
+
+    if not pages:
+        raise RuntimeError("ReportLab backend: no letter pages found in HTML.")
+
+    # ── Draw PDF ─────────────────────────────────────────────────────────────
+    c = rl_canvas.Canvas(str(output_path), pagesize=(W, H))
+    font_name = "Helvetica-Bold"   # built-in, always available
+
+    for page in pages:
+        letter_char = page["letter"]
+        bg_col      = _hex_to_color(page["bg"])
+        fill_col    = _hex_to_color(page["fill"])
+        stroke_col  = _hex_to_color(page["stroke"])
+
+        # Page background
+        c.setFillColor(bg_col)
+        c.rect(0, 0, W, H, stroke=0, fill=1)
+
+        # Auto-size: fill 90% of width or 88% of height, whichever is smaller
+        target_w = W * 0.90
+        target_h = H * 0.88
+
+        # Binary search for the right font size
+        lo, hi = 10.0, 3000.0
+        for _ in range(30):
+            mid = (lo + hi) / 2.0
+            if pdfmetrics.stringWidth(letter_char, font_name, mid) < target_w:
+                lo = mid
+            else:
+                hi = mid
+        fs = min(lo, target_h)
+
+        glyph_w = pdfmetrics.stringWidth(letter_char, font_name, fs)
+        x = (W - glyph_w) / 2.0
+        # Centre the cap-height (≈72% of em) on the page
+        # ReportLab y=0 is bottom of page
+        cap_h = fs * 0.72
+        y = (H - cap_h) / 2.0
+
+        # stroke_w * 2 because PDF text stroke is centred on the path:
+        # half goes inside (hidden by fill), half goes outside (visible)
+        stroke_w = max(1.5, fs * 0.006)
+
+        c.setFont(font_name, fs)
+        c.setLineWidth(stroke_w * 2)
+        c.setStrokeColor(stroke_col)
+        c.setFillColor(fill_col)
+
+        # Use beginText / drawText so that setTextRenderMode() emits the
+        # correct 'Tr' PDF operator.  Setting canvas._textRenderMode directly
+        # does NOT emit 'Tr' into the stream — the text appears invisible.
+        t = c.beginText(x, y)
+        if page["mode"] == "outline":
+            # Render mode 2: fill + stroke simultaneously.
+            # Fill = page background → interior is invisible against the page.
+            # Stroke = outline colour → only outer edge shows.
+            t.setTextRenderMode(2)
+        else:
+            # Render mode 0: solid fill only.
+            t.setTextRenderMode(0)
+        t.textOut(letter_char)
+        c.drawText(t)
+
+        c.showPage()
+
+    c.save()
+
+
 def _pdf_via_xhtml2pdf(html: str, output_path: Path) -> None:
     """
-    Render HTML → PDF using xhtml2pdf — 100% pure Python, no binaries.
+    Render letter-banner HTML → PDF using xhtml2pdf — 100% pure Python.
 
     Install:  pip install xhtml2pdf
 
-    Note: CSS support is limited (no Google Fonts, basic layout only).
-    The letter shape will still print correctly; decorative fonts fall back
-    to a system serif.  For best quality use Playwright instead.
+    Note: letter outlines are rendered via the ReportLab backend instead
+    (called automatically before this one).  This backend is a fallback
+    for colour-fill mode only.
     """
     import re  # noqa: PLC0415
     from xhtml2pdf import pisa  # noqa: PLC0415
 
     def _preprocess_for_xhtml2pdf(raw: str, w_in: float, h_in: float) -> str:
         """
-        Adapt the HTML for xhtml2pdf rendering:
+        Adapt the HTML for xhtml2pdf rendering.
 
-        Key differences from a browser:
-        - page-break-after CSS on divs is unreliable → use <pdf:nextpage/>
-        - position:absolute SVG is not supported → convert to block display
-        - Google Fonts URLs are not reachable → strip the link tag
-        - feGaussianBlur filter not supported → strip blur elements
+        xhtml2pdf limitations addressed here:
+        - SVG rendering is unreliable → replace SVG letter blocks with plain
+          HTML text sized in pt units (reliable, always correct size)
+        - page-break-after CSS is unreliable → remove it and use <pdf:nextpage/>
+        - Google Fonts URLs not reachable → strip link tags
         - radial-gradient not supported → strip background-image
-        - Needs @page size rule and pdf namespace for page control
+        - Needs @page size rule and pdf namespace
         """
+        w_pt = round(w_in * 72, 2)   # 1in = 72pt
+        h_pt = round(h_in * 72, 2)
+
         # 1. Add pdf namespace to <html> tag
         raw = raw.replace(
             '<html lang="en">',
@@ -579,62 +731,93 @@ def _pdf_via_xhtml2pdf(html: str, output_path: Path) -> None:
             1
         )
 
-        # 2. Inject @page size rule into the <style> block
-        page_rule = (
-            f'@page {{ size: {w_in}in {h_in}in; margin: 0in; }}\n'
-            f'body {{ margin: 0; padding: 0; }}\n'
+        # 2. Inject @page size + body reset into <style>
+        page_css = (
+            f'@page {{ size: {w_in}in {h_in}in; margin: 0; }}\n'
+            f'body, html {{ margin: 0; padding: 0; background: white; }}\n'
+            f'.lb-page {{ display: block; width: {w_pt}pt; height: {h_pt}pt; '
+            f'overflow: hidden; page-break-after: avoid; }}\n'
         )
-        raw = raw.replace('</style>', page_rule + '</style>', 1)
+        raw = raw.replace('</style>', page_css + '</style>', 1)
 
-        # 3. Strip Google Fonts links (no outbound HTTP in xhtml2pdf)
+        # 3. Strip Google Fonts (no outbound HTTP)
         raw = re.sub(r'<link[^>]+fonts\.googleapis\.com[^>]*>', '', raw)
 
-        # 4. Strip blur filter (feGaussianBlur not supported)
-        raw = re.sub(r'<filter[^>]*>.*?</filter>', '', raw, flags=re.DOTALL)
-        raw = re.sub(r'filter="url\([^)]+\)"', '', raw)
-        raw = re.sub(r'opacity="0\.\d+"', '', raw)  # drop shadow opacity too
-
-        # 5. Convert SVG px dimensions to pt for xhtml2pdf.
-        #    xhtml2pdf renders at 72dpi; our SVG uses 96dpi px.
-        #    Multiply by 72/96 = 0.75 so the SVG fills the page correctly.
-        #    Also convert position:absolute → block so xhtml2pdf flows it.
-        def _rescale_svg(m: re.Match) -> str:
-            pre   = m.group(1)              # everything before width=
-            wpx   = float(m.group(2))       # SVG width  in px
-            hpx   = float(m.group(3))       # SVG height in px
-            wpt   = round(wpx * 0.75, 2)    # → pt
-            hpt   = round(hpx * 0.75, 2)    # → pt
-            # Keep viewBox so glyph proportions are preserved
+        # 4. Replace each SVG letter block with a plain HTML letter.
+        #    xhtml2pdf can't reliably render inline SVG at the correct size.
+        #    We use a table-cell layout for vertical+horizontal centering,
+        #    sized in pt so it always fills the page exactly.
+        def _svg_to_text(m: re.Match) -> str:
+            svg_block = m.group(0)
+            # Extract the letter character
+            letter_m = re.search(r'>([\w])</text>', svg_block)
+            letter   = letter_m.group(1) if letter_m else '?'
+            # Extract fill and stroke colours
+            fill_m   = re.search(r'fill="([^"]+)"', svg_block)
+            stroke_m = re.search(r'stroke="([^"]+)"', svg_block)
+            fill_col  = fill_m.group(1)   if fill_m   else 'white'
+            stroke_col = stroke_m.group(1) if stroke_m else '#222222'
+            # Font size: 88% of page height in pt gives good visual fill
+            font_pt = round(h_pt * 0.88, 1)
+            # Use stroke colour as text colour; fill colour for background
+            # (xhtml2pdf has no text-stroke — we just use solid fill colour)
+            text_col = stroke_col
             return (
-                f'{pre}width="{wpt}pt" height="{hpt}pt" '
-                f'style="display:block;margin:0 auto;"'
+                f'<table width="{w_pt}pt" height="{h_pt}pt" '
+                f'style="width:{w_pt}pt;height:{h_pt}pt;'
+                f'border-collapse:collapse;background:{fill_col};">'
+                f'<tr><td align="center" valign="middle" '
+                f'style="text-align:center;vertical-align:middle;'
+                f'width:{w_pt}pt;height:{h_pt}pt;">'
+                f'<span style="font-size:{font_pt}pt;font-family:'
+                f'Arial Black,Impact,Arial,sans-serif;'
+                f'font-weight:900;color:{text_col};">'
+                f'{letter}</span></td></tr></table>'
             )
+
         raw = re.sub(
-            r'(<svg[^>]+?)width="([\.\d]+)" height="([\.\d]+)"[^>]*'
-            r'style="position:absolute;inset:0;z-index:1;overflow:visible;"',
-            _rescale_svg,
+            r'<svg[^>]+style="position:absolute;inset:0;z-index:1;'
+            r'overflow:visible;">.*?</svg>',
+            _svg_to_text,
             raw,
+            flags=re.DOTALL,
         )
 
-        # 6. Strip unsupported CSS on .lb-page (position, overflow, flex)
-        #    Replace with simple block + explicit size + page break
+        # 5. Strip decoration SVG (the polka-dot one — not needed for PDF)
+        raw = re.sub(
+            r'<svg class="lb-deco"[^>]*>.*?</svg>',
+            '',
+            raw,
+            flags=re.DOTALL,
+        )
+
+        # 6. Strip inline CSS on .lb-page that confuses xhtml2pdf
+        #    (flex, overflow, position — keep only background and dimensions)
         raw = re.sub(
             r'<div class="lb-page" style="([^"]*)"',
-            lambda m: '<div class="lb-page" style="'
-                + re.sub(r'(display|overflow|flex[^:]*|align[^:]*|justify[^:]*)'
-                         r':[^;]+;', '', m.group(1))
-                + f'display:block;page-break-after:always;'
-                  f'page-break-inside:avoid;"',
+            lambda m: (
+                '<div class="lb-page" style="'
+                + re.sub(
+                    r'(display|overflow|flex[^:]*|align[^:]*|justify[^:]*|'
+                    r'--lb[^:]*|position):[^;]+;',
+                    '', m.group(1)
+                )
+                + 'display:block;"'
+            ),
             raw
         )
 
-        # 7. Remove polka-dot radial-gradient
+        # 7. Strip radial-gradient (unsupported)
         raw = re.sub(r'background-image:radial-gradient\([^)]+\);', '', raw)
 
-        # 8. Insert <pdf:nextpage/> between consecutive lb-page divs
-        #    so xhtml2pdf definitely starts a new page for each letter
+        # 8. Replace all ::before pseudo-element references (not applicable)
+        #    Already handled by stripping the CSS class above.
+
+        # 9. Insert <pdf:nextpage/> between pages.
+        #    Do NOT also use CSS page-break — xhtml2pdf creates a blank page
+        #    for every page-break-after + pdf:nextpage combination.
         raw = re.sub(
-            r'(</div>)\s*(\n\s*<div class="lb-page")',
+            r'(</div>)\s*(<div class="lb-page")',
             r'\1<pdf:nextpage/>\2',
             raw
         )
@@ -746,14 +929,28 @@ def generate_pdf(html: str, output_path: str | Path) -> None:
     except Exception as exc:
         errors.append(f"pdfkit failed ({exc.__class__.__name__}: {exc})")
 
-    # ── 4. xhtml2pdf ─────────────────────────────────────────────────────────
+    # ── 4. ReportLab (via xhtml2pdf dependency) ───────────────────────────────
+    # Pure Python, no binaries, correct outline rendering, one letter per page.
+    # ReportLab is automatically installed when you install xhtml2pdf.
+    try:
+        _pdf_via_reportlab(html, output_path)
+        return
+    except ImportError:
+        errors.append(
+            "ReportLab not installed  →  pip install xhtml2pdf\n"
+            "  (ReportLab is installed automatically as part of xhtml2pdf)"
+        )
+    except Exception as exc:
+        errors.append(f"ReportLab failed ({exc.__class__.__name__}: {exc})")
+
+    # ── 5. xhtml2pdf fallback ─────────────────────────────────────────────────
     try:
         _pdf_via_xhtml2pdf(html, output_path)
         return
     except ImportError:
         errors.append(
             "xhtml2pdf not installed  →  pip install xhtml2pdf\n"
-            "  (pure Python, no admin rights needed, limited CSS)"
+            "  (pure Python, no admin rights needed)"
         )
     except Exception as exc:
         errors.append(f"xhtml2pdf failed ({exc.__class__.__name__}: {exc})")
@@ -765,14 +962,13 @@ def generate_pdf(html: str, output_path: str | Path) -> None:
         + attempts +
         "\n\n"
         "Recommended fix (Windows, no admin rights):\n"
-        "  pip install playwright\n"
-        "  playwright install chromium\n\n"
+        "  pip install xhtml2pdf   ← installs ReportLab automatically\n\n"
         "Recommended fix (macOS / Linux):\n"
         "  pip install weasyprint\n"
         "  brew install pango           # macOS\n"
         "  sudo apt install libpango-1.0-0 libpangocairo-1.0-0  # Linux\n\n"
-        "Simplest fix (any platform, pure Python):\n"
-        "  pip install xhtml2pdf\n"
+        "Or for any platform:\n"
+        "  pip install xhtml2pdf        # pure Python, no downloads needed\n"
     )
 
 
