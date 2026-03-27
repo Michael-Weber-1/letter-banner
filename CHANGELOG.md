@@ -10,6 +10,13 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [Unreleased]
 
 ### Added
+- **Outline too thick fixed**: `outline_width` default reduced from 16 → **4** SVG px (~1mm at print)
+  Stroke now scales proportionally with font size (≈0.6% of em) so it looks
+  consistent at any `--font-size` value; `outline_width` acts as a fine-tune multiplier
+- **xhtml2pdf letters small fixed**: SVG pixel dimensions converted to pt (×0.75)
+  so the letter fills the page correctly (xhtml2pdf renders at 72dpi, SVG at 96dpi)
+- **Playwright SSL**: browser launched with `--ignore-certificate-errors` to work
+  behind corporate proxies; error message now includes `NODE_EXTRA_CA_CERTS` hint
 - **PDF one-page bug fixed**: xhtml2pdf now receives `<pdf:nextpage/>` tags
   between letters and a correct `@page { size }` rule — each letter prints
   on its own page

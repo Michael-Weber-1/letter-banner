@@ -387,6 +387,10 @@ letter-banner "A" --clean-white --font-size 1.2
 save_banner("HELLO", BannerConfig(font_size=1.0))
 ```
 
+> **Outline thickness** is controlled by `--outline-width` (default 4 ≈ 1mm at print).
+> The stroke scales with font size automatically. Use `--outline-width 8` for medium,
+> `16` for bold, `24` for heavy.
+
 > **Tip:** if a letter looks too small, just increase `--font-size` in steps
 > of 0.1 until it fills the page to your liking.  Values above 1.0 are fine —
 > the letter will simply bleed slightly outside the page boundary on
@@ -461,7 +465,7 @@ class BannerConfig:
 
     # Outline options
     outline_color: str = "#222222"
-    outline_width: int = 16
+    outline_width: int = 4    # 3=hairline 4=thin(default) 8=medium 16=bold 24=heavy
     outline_bg:    str = "#ffffff"
 
     # Typography

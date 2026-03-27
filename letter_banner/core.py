@@ -78,8 +78,16 @@ class BannerConfig:
     outline_color: str = "#222222"
     """Stroke colour for outline mode."""
 
-    outline_width: int = 16
-    """Stroke width in pixels for outline mode."""
+    outline_width: int = 4
+    """Stroke width in SVG pixels for outline mode (96dpi scale).
+
+    At print size:
+    - ``3``  — hairline (~0.75mm)
+    - ``4``  — thin, clean  (default, ~1mm)
+    - ``8``  — medium (~2mm)
+    - ``16`` — bold (~4mm)
+    - ``24`` — heavy (~6mm)
+    """
 
     outline_bg:    str = "#ffffff"
     """Page background colour for outline mode."""
@@ -269,7 +277,16 @@ def _build_svg_letter(
     font_ref = (
         f"\'{font_family}\', \'Lilita One\', Impact, \'Arial Black\', sans-serif"
     )
-    sw = max(cfg.outline_width, 8)  # minimum stroke width
+    # Stroke width scales with font size so it looks consistent at any
+    # --font-size value. cfg.outline_width acts as a fine-tune multiplier
+    # (default 4 ≈ thin; 8 ≈ medium; 16 ≈ bold; 24 ≈ heavy).
+    # Base: ~0.6% of font size; cfg.outline_width shifts around that base.
+    _base_sw  = max(2.0, fs * 0.006)          # e.g. ~6px at 1000px font
+    _scale_sw = _base_sw * (cfg.outline_width / 4.0)  # 4=default → 1×
+    sw        = round(_scale_sw, 1)
+
+    # Color mode uses a fixed proportion for the fill stroke
+    color_sw = round(max(2.0, fs * 0.008), 1)
 
     if cfg.mode == "outline":
         text_el = (
@@ -304,7 +321,7 @@ def _build_svg_letter(
             f'font-family="{font_ref}" '
             f'font-size="{fs:.2f}" font-weight="900" '
             f'fill="{theme.fill}" '
-            f'stroke="{theme.stroke}" stroke-width="10" '
+            f'stroke="{theme.stroke}" stroke-width="{color_sw}" '
             f'paint-order="stroke fill">'
             f'{letter}</text>'
         )
@@ -515,8 +532,12 @@ def _pdf_via_playwright(html: str, output_path: Path) -> None:
     from playwright.sync_api import sync_playwright  # noqa: PLC0415
 
     with sync_playwright() as pw:
-        browser = pw.chromium.launch()
-        page    = browser.new_page()
+        # --ignore-certificate-errors lets Playwright work behind a
+        # corporate proxy that uses a self-signed certificate.
+        browser = pw.chromium.launch(
+            args=["--ignore-certificate-errors"]
+        )
+        page = browser.new_page()
         page.set_content(html, wait_until="networkidle")
         page.pdf(
             path=str(output_path),
@@ -573,10 +594,26 @@ def _pdf_via_xhtml2pdf(html: str, output_path: Path) -> None:
         raw = re.sub(r'filter="url\([^)]+\)"', '', raw)
         raw = re.sub(r'opacity="0\.\d+"', '', raw)  # drop shadow opacity too
 
-        # 5. Convert absolute SVG to block-level so xhtml2pdf flows it
-        raw = raw.replace(
-            'style="position:absolute;inset:0;z-index:1;overflow:visible;"',
-            f'style="display:block;width:{w_in}in;height:{h_in}in;"',
+        # 5. Convert SVG px dimensions to pt for xhtml2pdf.
+        #    xhtml2pdf renders at 72dpi; our SVG uses 96dpi px.
+        #    Multiply by 72/96 = 0.75 so the SVG fills the page correctly.
+        #    Also convert position:absolute → block so xhtml2pdf flows it.
+        def _rescale_svg(m: re.Match) -> str:
+            pre   = m.group(1)              # everything before width=
+            wpx   = float(m.group(2))       # SVG width  in px
+            hpx   = float(m.group(3))       # SVG height in px
+            wpt   = round(wpx * 0.75, 2)    # → pt
+            hpt   = round(hpx * 0.75, 2)    # → pt
+            # Keep viewBox so glyph proportions are preserved
+            return (
+                f'{pre}width="{wpt}pt" height="{hpt}pt" '
+                f'style="display:block;margin:0 auto;"'
+            )
+        raw = re.sub(
+            r'(<svg[^>]+?)width="([\.\d]+)" height="([\.\d]+)"[^>]*'
+            r'style="position:absolute;inset:0;z-index:1;overflow:visible;"',
+            _rescale_svg,
+            raw,
         )
 
         # 6. Strip unsupported CSS on .lb-page (position, overflow, flex)
@@ -604,16 +641,13 @@ def _pdf_via_xhtml2pdf(html: str, output_path: Path) -> None:
 
         return raw
 
-    clean = _preprocess_for_xhtml2pdf(html, w_in=8.5, h_in=11.0)
-
-    # Extract paper size from HTML for correct @page rule
+    # Extract paper size from HTML for @page rule and SVG rescaling
     size_m = re.search(r'width:([\d.]+)in;height:([\d.]+)in', html)
     if size_m:
-        clean = _preprocess_for_xhtml2pdf(
-            html,
-            w_in=float(size_m.group(1)),
-            h_in=float(size_m.group(2)),
-        )
+        _w, _h = float(size_m.group(1)), float(size_m.group(2))
+    else:
+        _w, _h = 8.5, 11.0
+    clean = _preprocess_for_xhtml2pdf(html, w_in=_w, h_in=_h)
 
     with open(output_path, "wb") as fh:
         result = pisa.CreatePDF(clean, dest=fh)
@@ -690,10 +724,13 @@ def generate_pdf(html: str, output_path: str | Path) -> None:
             "  Then run once:           playwright install chromium"
         )
     except Exception as exc:
-        errors.append(
-            f"Playwright failed ({exc.__class__.__name__}: {exc})\n"
-            "  Run: playwright install chromium"
+        _pw_hint = (
+            "  Run: playwright install chromium\n"
+            "  Corporate proxy SSL error? Set NODE_EXTRA_CA_CERTS first:\n"
+            "    Windows: set NODE_EXTRA_CA_CERTS=C:\\path\\to\\corp-ca.crt\n"
+            "    Then:    playwright install chromium"
         )
+        errors.append(f"Playwright failed ({exc.__class__.__name__}: {exc})\n{_pw_hint}")
 
     # ── 3. pdfkit + wkhtmltopdf ──────────────────────────────────────────────
     try:
