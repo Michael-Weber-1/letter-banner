@@ -50,7 +50,7 @@ class TestBannerConfig:
             cfg.validate()
 
     def test_invalid_font_size(self):
-        cfg = BannerConfig(font_size=1.5)
+        cfg = BannerConfig(font_size=2.5)
         with pytest.raises(ValueError, match="font_size"):
             cfg.validate()
 

@@ -10,6 +10,13 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [Unreleased]
 
 ### Added
+- GitHub username updated to `Michael-Weber-1` across all files
+- Font now fills the page using `min(vh, vw)` — letter maximises both axes
+- Default `font_size` raised from 0.82 → 0.92 for better page coverage
+- `font_size` upper limit relaxed to 2.0 for power users
+- xhtml2pdf backend: `vh`/`vw` units and CSS `min()` converted to `pt` at
+  render time — fixes `could not convert string to float: '82.0vh'` error
+- xhtml2pdf backend: unsupported `filter:` rules stripped automatically
 - `--clean` / `-C` shortcut: outline mode, transparent background, no decoration — one flag only
 - `--clean-white` / `-W` shortcut: outline mode, white background, no decoration
 - `--filled` / `-F` shortcut: solid colour letter, white background, no decoration

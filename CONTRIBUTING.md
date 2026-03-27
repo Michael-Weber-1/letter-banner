@@ -22,7 +22,7 @@ everything you need to get started.
 
 ```bash
 # 1. Fork & clone
-git clone https://github.com/your-username/letter-banner.git
+git clone https://github.com/Michael-Weber-1/letter-banner.git
 cd letter-banner
 
 # 2. Create a virtual environment

@@ -92,7 +92,7 @@ class BannerConfig:
     ``"Baloo Bhaijaan 2"``).
     """
 
-    font_size: float = 0.82
+    font_size: float = 0.92
     """Letter height as a fraction of the page height (0 < font_size ≤ 1)."""
 
     # ── Decorations ──────────────────────────────────────────────────────────
@@ -138,8 +138,8 @@ class BannerConfig:
         if self.decoration not in DECORATION_STYLES:
             avail = ", ".join(DECORATION_STYLES)
             raise ValueError(f"Unknown decoration {self.decoration!r}.  Available: {avail}")
-        if not (0 < self.font_size <= 1):
-            raise ValueError(f"font_size must be between 0 and 1, got {self.font_size}.")
+        if not (0 < self.font_size <= 2.0):
+            raise ValueError(f"font_size must be between 0 and 2.0, got {self.font_size}.")
 
 
 # ---------------------------------------------------------------------------
@@ -265,22 +265,24 @@ def _build_page_html(
         wrap_html = letter_html   # SVG is absolutely positioned
 
     elif cfg.mode == "outline":
+        _fs = f"min({cfg.font_size * 100:.1f}vh, {cfg.font_size * 100:.1f}vw)"
         letter_div = (
             f'<div class="lb-letter" style="'
             f'-webkit-text-stroke:{cfg.outline_width}px {cfg.outline_color};'
             f'color:transparent;'
-            f'font-size:{cfg.font_size * 100:.1f}vh;">'
+            f'font-size:{_fs};">'
             f'{letter}</div>'
         )
         wrap_html = f'<div class="lb-letter-wrap">{letter_div}</div>'
 
     else:  # color
+        _fs = f"min({cfg.font_size * 100:.1f}vh, {cfg.font_size * 100:.1f}vw)"
         letter_div = (
             f'<div class="lb-letter" style="'
             f'-webkit-text-stroke:14px {theme.stroke};'
             f'color:{theme.fill};'
             f'filter:drop-shadow(0 10px 0 {theme.stroke});'
-            f'font-size:{cfg.font_size * 100:.1f}vh;">'
+            f'font-size:{_fs};">'
             f'{letter}</div>'
         )
         wrap_html = f'<div class="lb-letter-wrap">{letter_div}</div>'
@@ -458,12 +460,58 @@ def _pdf_via_xhtml2pdf(html: str, output_path: Path) -> None:
     The letter shape will still print correctly; decorative fonts fall back
     to a system serif.  For best quality use Playwright instead.
     """
+    import re  # noqa: PLC0415
     from xhtml2pdf import pisa  # noqa: PLC0415
 
-    # xhtml2pdf cannot fetch remote Google Fonts; strip the link tag so it
-    # degrades gracefully to system fonts instead of erroring.
-    import re  # noqa: PLC0415
-    clean = re.sub(r'<link[^>]+fonts\.googleapis\.com[^>]*>', '', html)
+    def _preprocess_for_xhtml2pdf(raw: str) -> str:
+        """
+        xhtml2pdf understands neither ``vh``/``vw`` units nor CSS ``min()``.
+        We detect the page dimensions from the HTML width/height inline style
+        (e.g. ``width:8.5in;height:11in``) and convert every occurrence of
+        ``min(Xvh, Xvw)`` or bare ``Xvh`` / ``Xvw`` to the equivalent ``pt``
+        value so the letter fills the page correctly.
+        """
+        # Find page size (first match — all pages share the same paper)
+        size_m = re.search(r'width:([\d.]+)in;height:([\d.]+)in', raw)
+        if size_m:
+            w_in = float(size_m.group(1))
+            h_in = float(size_m.group(2))
+        else:
+            w_in, h_in = 8.5, 11.0   # fallback to Letter
+
+        w_pt = w_in * 72
+        h_pt = h_in * 72
+
+        def _replace_font_size(m: re.Match) -> str:
+            """Replace min(Xvh, Xvw) or Xvh with computed pt."""
+            # Group 1 = min(Xvh, Xvw)  –or–  group 2 = Xvh  –or–  group 3 = Xvw
+            if m.group(1):                        # min(Xvh, Xvw)
+                frac = float(m.group(1)) / 100
+                size_pt = min(frac * h_pt, frac * w_pt)
+            elif m.group(2):                       # bare Xvh
+                size_pt = float(m.group(2)) / 100 * h_pt
+            else:                                  # bare Xvw
+                size_pt = float(m.group(3)) / 100 * w_pt
+            return f"font-size:{size_pt:.1f}pt"
+
+        raw = re.sub(
+            r'font-size:min\(([\d.]+)vh,\s*[\d.]+vw\)'   # min(Xvh, Xvw)
+            r'|font-size:([\d.]+)vh'                       # bare Xvh
+            r'|font-size:([\d.]+)vw',                      # bare Xvw
+            _replace_font_size,
+            raw,
+        )
+
+        # Strip Google Fonts link (xhtml2pdf cannot reach external URLs)
+        raw = re.sub(r'<link[^>]+fonts\.googleapis\.com[^>]*>', '', raw)
+
+        # Strip unsupported CSS functions that cause parse errors
+        # drop-shadow with vh/vw args, etc.
+        raw = re.sub(r'filter:[^;]+;', '', raw)
+
+        return raw
+
+    clean = _preprocess_for_xhtml2pdf(html)
 
     with open(output_path, "wb") as fh:
         result = pisa.CreatePDF(clean, dest=fh)
