@@ -10,6 +10,14 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [1.1.0] – 2026-03-27
 
 ### Added
+- `--photo` / `-P` shortcut: photo fill mode, transparent background, no decoration,
+  no outline — the cleanest way to use image mode
+- `--photo-white` / `-Q` shortcut: photo fill, white background, no decoration, no outline
+- `--image-stroke PX` flag: optional stroke width drawn over the photo mosaic letter
+  (default `0` — no outline); use `--image-stroke 4` for a thin edge
+- `--image-stroke-color CSS` flag: colour of the optional photo stroke
+- `BannerConfig.image_stroke_width` and `image_stroke_color` fields
+- Image mode now defaults to **no outline** (`image_stroke_width=0`)
 - `--clean` / `-C` shortcut: outline letter, transparent background, no decoration — one flag
 - `--clean-white` / `-W` shortcut: outline letter, white background, no decoration
 - `--filled` / `-F` shortcut: solid colour letter, white background, no decoration

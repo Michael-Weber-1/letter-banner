@@ -86,6 +86,24 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="INT",
         help="Random seed for image shuffling (for reproducible output).",
     )
+    p.add_argument(
+        "--image-stroke",
+        default=0.0,
+        type=float,
+        metavar="PX",
+        dest="image_stroke_width",
+        help=(
+            "Stroke width drawn over the photo mosaic letter (SVG px, 96dpi). "
+            "Default 0 = no outline. Use 4 for a thin edge, 8 for medium."
+        ),
+    )
+    p.add_argument(
+        "--image-stroke-color",
+        default="rgba(0,0,0,0.35)",
+        metavar="CSS",
+        dest="image_stroke_color",
+        help="Colour of the optional stroke over the photo letter  (default: rgba(0,0,0,0.35))",
+    )
 
     # ── Outline ───────────────────────────────────────────────────────────────
     p.add_argument(
@@ -227,6 +245,27 @@ def build_parser() -> argparse.ArgumentParser:
             "--deco none --dot-opacity 0"
         ),
     )
+    shortcuts.add_argument(
+        "--photo", "-P",
+        action="store_true",
+        help=(
+            "Photo fill, transparent background, no decoration, no outline. "
+            "Equivalent to: --mode image --page-bg transparent "
+            "--deco none --dot-opacity 0 --image-stroke 0. "
+            "Requires --images FILE_OR_DIR."
+        ),
+    )
+    shortcuts.add_argument(
+        "--photo-white", "-Q",
+        action="store_true",
+        dest="photo_white",
+        help=(
+            "Photo fill, white background, no decoration, no outline. "
+            "Equivalent to: --mode image --page-bg '#ffffff' "
+            "--deco none --dot-opacity 0 --image-stroke 0. "
+            "Requires --images FILE_OR_DIR."
+        ),
+    )
 
     # ── Info ──────────────────────────────────────────────────────────────────
     p.add_argument(
@@ -263,8 +302,13 @@ def main(argv: list[str] | None = None) -> int:
         parser.print_help()
         return 1
 
+    # Apply photo shortcuts before mode validation so --photo sets mode=image
+    # (shortcuts are applied further below, but we need mode for validation)
+    if (args.photo or args.photo_white) and args.mode == "color":
+        args.mode = "image"
+
     if args.mode == "image" and not args.image_source:
-        parser.error("--mode image requires --images FILE_OR_DIR")
+        parser.error("--mode image (or --photo/--photo-white) requires --images FILE_OR_DIR")
 
     # ── Apply shortcut presets (individual flags below override these) ────────
     if args.clean:
@@ -284,6 +328,20 @@ def main(argv: list[str] | None = None) -> int:
         if args.decoration  == "dots":     args.decoration  = "none"
         if args.dot_opacity == 0.15:       args.dot_opacity = 0.0
 
+    if args.photo:
+        if args.mode        == "color":    args.mode        = "image"
+        if args.page_bg     == "":         args.page_bg     = "transparent"
+        if args.decoration  == "dots":     args.decoration  = "none"
+        if args.dot_opacity == 0.15:       args.dot_opacity = 0.0
+        if args.image_stroke_width == 0.0: args.image_stroke_width = 0.0  # explicit no outline
+
+    if args.photo_white:
+        if args.mode        == "color":    args.mode        = "image"
+        if args.page_bg     == "":         args.page_bg     = "#ffffff"
+        if args.decoration  == "dots":     args.decoration  = "none"
+        if args.dot_opacity == 0.15:       args.dot_opacity = 0.0
+        if args.image_stroke_width == 0.0: args.image_stroke_width = 0.0
+
     cfg = BannerConfig(
         mode           = args.mode,
         palette_name   = args.palette_name,
@@ -300,7 +358,9 @@ def main(argv: list[str] | None = None) -> int:
         dot_opacity    = args.dot_opacity,
         paper          = args.paper,
         show_label     = args.show_label,
-        page_bg        = args.page_bg,
+        page_bg             = args.page_bg,
+        image_stroke_width  = args.image_stroke_width,
+        image_stroke_color  = args.image_stroke_color,
     )
 
     try:

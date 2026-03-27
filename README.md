@@ -133,6 +133,13 @@ letter-banner "LOVE" --mode image --images rose.jpg
 # Photo fill — folder of photos (randomly sampled per letter)
 letter-banner "PARTY" --mode image --images ./my-photos/ --grid mosaic
 
+# Photo shortcuts — no outline, no background, no decoration (recommended for photos)
+letter-banner "PARTY" --photo --images ./photos/             # transparent background
+letter-banner "PARTY" --photo-white --images ./photos/       # white background
+
+# Add a subtle edge outline to photos
+letter-banner "PARTY" --photo --images ./photos/ --image-stroke 4
+
 # A4 paper, elegant font
 letter-banner "FROHE OSTERN" --paper A4 --font elegant
 
@@ -233,6 +240,8 @@ Three shortcuts handle the most common clean-output scenarios in a single flag:
 | `--clean` | `-C` | Outline letter, **transparent** background, no decoration |
 | `--clean-white` | `-W` | Outline letter, **white** background, no decoration |
 | `--filled` | `-F` | Solid colour letter, **white** background, no decoration |
+| `--photo` | `-P` | Photo fill, **transparent** background, no decoration, no outline |
+| `--photo-white` | `-Q` | Photo fill, **white** background, no decoration, no outline |
 
 ```bash
 # Transparent — letter shape only, ideal for overlays / compositing
@@ -472,10 +481,12 @@ class BannerConfig:
     palette_override: list[Theme] = []       # overrides palette_name
 
     # Image options
-    image_source:  str | Path | None = None  # file or folder
-    grid_style:    GridStyle         = "mosaic"
-    image_max_dim: int               = 1400
-    image_seed:    int | None        = None  # for reproducibility
+    image_source:      str | Path | None = None   # file or folder
+    grid_style:        GridStyle         = "mosaic"
+    image_max_dim:     int               = 1400
+    image_seed:        int | None        = None   # for reproducibility
+    image_stroke_width: float            = 0.0    # 0 = no outline (default for photos)
+    image_stroke_color: str              = "rgba(0,0,0,0.35)"
 
     # Outline options
     outline_color: str = "#222222"

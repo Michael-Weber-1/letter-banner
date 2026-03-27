@@ -74,6 +74,19 @@ class BannerConfig:
     image_seed:    Optional[int] = None
     """Seed for shuffling the image pool.  ``None`` → random each run."""
 
+    image_stroke_width: float = 0.0
+    """
+    Stroke width drawn on top of the photo mosaic letter (SVG px, 96dpi).
+
+    - ``0.0`` — no outline (default) — photos fill the letter shape cleanly
+    - ``4.0`` — thin outline around the letter edge
+    - ``8.0`` — medium outline
+    Use ``--image-stroke`` on the CLI to set this.
+    """
+
+    image_stroke_color: str = "rgba(0,0,0,0.35)"
+    """Colour of the optional stroke drawn over the photo mosaic letter."""
+
     # ── Outline options (mode == "outline") ──────────────────────────────────
     outline_color: str = "#222222"
     """Stroke colour for outline mode."""
@@ -375,6 +388,8 @@ def _build_page_html(
             letter=letter, data_urls=data_urls,
             grid_style=cfg.grid_style, font_family=font_family,
             w_in=w_in, h_in=h_in, idx=idx,
+            stroke_color=cfg.image_stroke_color,
+            stroke_width=cfg.image_stroke_width,
         )
     else:
         # Color and outline both rendered as SVG using absolute px dimensions.
