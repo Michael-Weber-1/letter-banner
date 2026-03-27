@@ -177,19 +177,7 @@ body {
   z-index: 0;
 }
 
-.lb-letter-wrap {
-  position: relative;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.lb-letter {
-  text-align: center;
-  user-select: none;
-  line-height: 1;
-}
+/* Letter is rendered as an absolutely-positioned SVG — no wrapper div needed */
 
 .lb-label {
   position: absolute;
@@ -231,6 +219,59 @@ body {
 """
 
 
+def _build_svg_letter(
+    letter:      str,
+    cfg:         "BannerConfig",
+    theme:       "Theme",
+    font_family: str,
+    w_in:        float,
+    h_in:        float,
+    dpi:         int = 96,
+) -> str:
+    """
+    Return an absolutely-positioned ``<svg>`` element containing the letter.
+
+    Uses actual pixel dimensions derived from the paper size so the letter
+    fills the page correctly in every rendering context — browser, WeasyPrint,
+    Playwright, and xhtml2pdf.
+
+    The letter occupies ``cfg.font_size`` × page-height, capped to
+    ``cfg.font_size`` × page-width so wide glyphs (W, M) never overflow.
+    """
+    W   = w_in * dpi          # page width  in SVG px
+    H   = h_in * dpi          # page height in SVG px
+    cx  = W / 2
+    cy  = H / 2
+
+    # Font size: fill the shorter axis so every glyph fits
+    fs  = min(H * cfg.font_size, W * cfg.font_size * 1.25)
+    # Baseline sits slightly below centre (cap-height ≈ 70 % of em)
+    baseline = cy + fs * 0.30
+
+    font_ref = (
+        f"\'{font_family}\', \'Lilita One\', Impact, \'Arial Black\', sans-serif"
+    )
+
+    if cfg.mode == "outline":
+        text_attrs = (
+            f'fill="none" '            f'stroke="{cfg.outline_color}" '            f'stroke-width="{cfg.outline_width}" '            f'paint-order="stroke fill"'        )
+        shadow = ""
+    else:  # color
+        text_attrs = (
+            f'fill="{theme.fill}" '            f'stroke="{theme.stroke}" '            f'stroke-width="12" '            f'paint-order="stroke fill"'        )
+        # Drop-shadow via a blurred, offset duplicate underneath
+        shadow_y = baseline + fs * 0.012
+        shadow = (
+            f'<text '            f'x="{cx:.2f}" y="{shadow_y:.2f}" '            f'text-anchor="middle" '            f'font-family="{font_ref}" '            f'font-size="{fs:.2f}" font-weight="900" '            f'fill="{theme.stroke}" opacity="0.35" '            f'filter="url(#lb-blur)">'            f'{letter}</text>'        )
+
+    blur_filter = (
+        '<filter id="lb-blur"><feGaussianBlur stdDeviation="6"/></filter>'
+    )
+
+    return (
+        f'<svg xmlns="http://www.w3.org/2000/svg" '        f'viewBox="0 0 {W:.2f} {H:.2f}" '        f'width="{W:.2f}" height="{H:.2f}" '        f'style="position:absolute;inset:0;z-index:1;overflow:visible;">'        f'<defs>{blur_filter}</defs>'        f'{shadow}'        f'<text '        f'x="{cx:.2f}" y="{baseline:.2f}" '        f'text-anchor="middle" '        f'font-family="{font_ref}" '        f'font-size="{fs:.2f}" font-weight="900" '        f'{text_attrs}>'        f'{letter}</text>'        f'</svg>'    )
+
+
 def _build_page_html(
     letter:      str,
     idx:         int,
@@ -257,35 +298,19 @@ def _build_page_html(
 
     # ── Letter element ───────────────────────────────────────────────────────
     if cfg.mode == "image":
-        letter_html = build_svg_image_letter(
+        wrap_html = build_svg_image_letter(
             letter=letter, data_urls=data_urls,
             grid_style=cfg.grid_style, font_family=font_family,
             w_in=w_in, h_in=h_in, idx=idx,
         )
-        wrap_html = letter_html   # SVG is absolutely positioned
-
-    elif cfg.mode == "outline":
-        _fs = f"min({cfg.font_size * 100:.1f}vh, {cfg.font_size * 100:.1f}vw)"
-        letter_div = (
-            f'<div class="lb-letter" style="'
-            f'-webkit-text-stroke:{cfg.outline_width}px {cfg.outline_color};'
-            f'color:transparent;'
-            f'font-size:{_fs};">'
-            f'{letter}</div>'
+    else:
+        # Color and outline both rendered as SVG using absolute px dimensions.
+        # This guarantees correct sizing in browsers, WeasyPrint, Playwright,
+        # and xhtml2pdf — no vh/vw or CSS min() needed.
+        wrap_html = _build_svg_letter(
+            letter=letter, cfg=cfg, theme=theme,
+            font_family=font_family, w_in=w_in, h_in=h_in,
         )
-        wrap_html = f'<div class="lb-letter-wrap">{letter_div}</div>'
-
-    else:  # color
-        _fs = f"min({cfg.font_size * 100:.1f}vh, {cfg.font_size * 100:.1f}vw)"
-        letter_div = (
-            f'<div class="lb-letter" style="'
-            f'-webkit-text-stroke:14px {theme.stroke};'
-            f'color:{theme.fill};'
-            f'filter:drop-shadow(0 10px 0 {theme.stroke});'
-            f'font-size:{_fs};">'
-            f'{letter}</div>'
-        )
-        wrap_html = f'<div class="lb-letter-wrap">{letter_div}</div>'
 
     # ── Optional label ───────────────────────────────────────────────────────
     label_html = ""
@@ -465,50 +490,23 @@ def _pdf_via_xhtml2pdf(html: str, output_path: Path) -> None:
 
     def _preprocess_for_xhtml2pdf(raw: str) -> str:
         """
-        xhtml2pdf understands neither ``vh``/``vw`` units nor CSS ``min()``.
-        We detect the page dimensions from the HTML width/height inline style
-        (e.g. ``width:8.5in;height:11in``) and convert every occurrence of
-        ``min(Xvh, Xvw)`` or bare ``Xvh`` / ``Xvw`` to the equivalent ``pt``
-        value so the letter fills the page correctly.
+        Prepare HTML for xhtml2pdf rendering:
+        - Strip Google Fonts links (cannot reach external URLs at render time)
+        - Remove blur filter references (not supported)
+        - Convert absolutely-positioned SVG to block-level for better compat
         """
-        # Find page size (first match — all pages share the same paper)
-        size_m = re.search(r'width:([\d.]+)in;height:([\d.]+)in', raw)
-        if size_m:
-            w_in = float(size_m.group(1))
-            h_in = float(size_m.group(2))
-        else:
-            w_in, h_in = 8.5, 11.0   # fallback to Letter
-
-        w_pt = w_in * 72
-        h_pt = h_in * 72
-
-        def _replace_font_size(m: re.Match) -> str:
-            """Replace min(Xvh, Xvw) or Xvh with computed pt."""
-            # Group 1 = min(Xvh, Xvw)  –or–  group 2 = Xvh  –or–  group 3 = Xvw
-            if m.group(1):                        # min(Xvh, Xvw)
-                frac = float(m.group(1)) / 100
-                size_pt = min(frac * h_pt, frac * w_pt)
-            elif m.group(2):                       # bare Xvh
-                size_pt = float(m.group(2)) / 100 * h_pt
-            else:                                  # bare Xvw
-                size_pt = float(m.group(3)) / 100 * w_pt
-            return f"font-size:{size_pt:.1f}pt"
-
-        raw = re.sub(
-            r'font-size:min\(([\d.]+)vh,\s*[\d.]+vw\)'   # min(Xvh, Xvw)
-            r'|font-size:([\d.]+)vh'                       # bare Xvh
-            r'|font-size:([\d.]+)vw',                      # bare Xvw
-            _replace_font_size,
-            raw,
-        )
-
-        # Strip Google Fonts link (xhtml2pdf cannot reach external URLs)
+        # Strip Google Fonts links
         raw = re.sub(r'<link[^>]+fonts\.googleapis\.com[^>]*>', '', raw)
-
-        # Strip unsupported CSS functions that cause parse errors
-        # drop-shadow with vh/vw args, etc.
-        raw = re.sub(r'filter:[^;]+;', '', raw)
-
+        # Remove inline filter CSS (feGaussianBlur not supported)
+        raw = re.sub(r'<filter[^>]*>.*?</filter>', '', raw, flags=re.DOTALL)
+        raw = re.sub(r'filter="url\([^)]+\)"', '', raw)
+        # Remove position:absolute from SVG so xhtml2pdf flows it inline
+        raw = raw.replace(
+            'style="position:absolute;inset:0;z-index:1;overflow:visible;"',
+            'style="display:block;margin:0 auto;"',
+        )
+        # Remove polka-dot radial-gradient (not supported; bg colour stays)
+        raw = re.sub(r'background-image:radial-gradient\([^)]+\);', '', raw)
         return raw
 
     clean = _preprocess_for_xhtml2pdf(html)

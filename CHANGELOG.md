@@ -11,12 +11,15 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 - GitHub username updated to `Michael-Weber-1` across all files
-- Font now fills the page using `min(vh, vw)` — letter maximises both axes
+- Letter now rendered as **inline SVG** in all modes (color + outline + image)
+  using absolute `px` dimensions from paper size — eliminates `vh`/`vw` entirely
+- Font fills the full page correctly in every backend: browser, WeasyPrint,
+  Playwright, and xhtml2pdf
 - Default `font_size` raised from 0.82 → 0.92 for better page coverage
 - `font_size` upper limit relaxed to 2.0 for power users
-- xhtml2pdf backend: `vh`/`vw` units and CSS `min()` converted to `pt` at
-  render time — fixes `could not convert string to float: '82.0vh'` error
-- xhtml2pdf backend: unsupported `filter:` rules stripped automatically
+- xhtml2pdf: outline mode now renders as transparent letter (SVG `fill="none"`)
+  instead of filled; letter is centred vertically on the page
+- xhtml2pdf preprocessor simplified — no `vh`→`pt` conversion needed
 - `--clean` / `-C` shortcut: outline mode, transparent background, no decoration — one flag only
 - `--clean-white` / `-W` shortcut: outline mode, white background, no decoration
 - `--filled` / `-F` shortcut: solid colour letter, white background, no decoration

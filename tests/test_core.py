@@ -97,7 +97,10 @@ class TestGenerateHtml:
 
     def test_color_mode_contains_fill(self):
         html = self._html("X", mode="color", palette_name="vivid")
-        assert "color:" in html
+        # Letter fill colour is now a hex in SVG fill= attribute
+        import re
+        letter_fills = re.findall(r'fill="(#[0-9a-fA-F]+)"', html)
+        assert len(letter_fills) > 0, "no hex fill colour found in SVG"
 
     def test_outline_mode_transparent(self):
         html = self._html("X", mode="outline", outline_color="#ff0000")
