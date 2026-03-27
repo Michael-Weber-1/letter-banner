@@ -92,8 +92,18 @@ class BannerConfig:
     ``"Baloo Bhaijaan 2"``).
     """
 
-    font_size: float = 0.92
-    """Letter height as a fraction of the page height (0 < font_size ≤ 1)."""
+    font_size: float = 0.95
+    """Letter height as fraction of page height (0 < font_size ≤ 2.0).
+
+    Practical guide:
+
+    - ``0.95`` — default, fills most of the page
+    - ``1.0``  — maximum without clipping on tall glyphs
+    - ``1.1``  — slightly oversized; descenders may clip slightly
+    - ``1.3``  — very large; best for single wide letters (W, M)
+
+    CLI: ``--font-size 1.1``  Python: ``BannerConfig(font_size=1.1)``
+    """
 
     # ── Decorations ──────────────────────────────────────────────────────────
     decoration: str = "dots"
@@ -229,47 +239,88 @@ def _build_svg_letter(
     dpi:         int = 96,
 ) -> str:
     """
-    Return an absolutely-positioned ``<svg>`` element containing the letter.
+    Return an absolutely-positioned ``<svg>`` containing the letter,
+    sized using absolute pixel dimensions so it renders correctly in
+    every backend (browser, WeasyPrint, Playwright, xhtml2pdf).
 
-    Uses actual pixel dimensions derived from the paper size so the letter
-    fills the page correctly in every rendering context — browser, WeasyPrint,
-    Playwright, and xhtml2pdf.
-
-    The letter occupies ``cfg.font_size`` × page-height, capped to
-    ``cfg.font_size`` × page-width so wide glyphs (W, M) never overflow.
+    Sizing strategy
+    ---------------
+    - Use the full page height × font_size as the em size.
+    - Cap by page width so wide glyphs (W, M) never overflow.
+    - Centre visually: most display fonts have cap-height ≈ 72% of em
+      and sit above the baseline, so we shift the baseline down by
+      (em - cap_height) / 2  so the glyph body is centred on the page.
     """
-    W   = w_in * dpi          # page width  in SVG px
-    H   = h_in * dpi          # page height in SVG px
-    cx  = W / 2
-    cy  = H / 2
+    W  = w_in * dpi
+    H  = h_in * dpi
+    cx = W / 2
+    cy = H / 2
 
-    # Font size: fill the shorter axis so every glyph fits
-    fs  = min(H * cfg.font_size, W * cfg.font_size * 1.25)
-    # Baseline sits slightly below centre (cap-height ≈ 70 % of em)
-    baseline = cy + fs * 0.30
+    # Max font size that fits both axes; the 1.35 factor lets wide letters
+    # (W, M) scale up more before hitting the width cap.
+    fs = min(H * cfg.font_size, W * cfg.font_size * 1.35)
+
+    # Visual centring: cap-height ≈ 72% of em for bold display fonts.
+    # The SVG text baseline is below the top of the glyph by one cap-height.
+    # To centre the glyph body: baseline = cy + cap_height / 2
+    cap_height = fs * 0.72
+    baseline   = cy + cap_height / 2
 
     font_ref = (
         f"\'{font_family}\', \'Lilita One\', Impact, \'Arial Black\', sans-serif"
     )
+    sw = max(cfg.outline_width, 8)  # minimum stroke width
 
     if cfg.mode == "outline":
-        text_attrs = (
-            f'fill="none" '            f'stroke="{cfg.outline_color}" '            f'stroke-width="{cfg.outline_width}" '            f'paint-order="stroke fill"'        )
+        text_el = (
+            f'<text '
+            f'x="{cx:.2f}" y="{baseline:.2f}" '
+            f'text-anchor="middle" dominant-baseline="auto" '
+            f'font-family="{font_ref}" '
+            f'font-size="{fs:.2f}" font-weight="900" '
+            f'fill="none" '
+            f'stroke="{cfg.outline_color}" stroke-width="{sw}" '
+            f'paint-order="stroke fill">'
+            f'{letter}</text>'
+        )
         shadow = ""
     else:  # color
-        text_attrs = (
-            f'fill="{theme.fill}" '            f'stroke="{theme.stroke}" '            f'stroke-width="12" '            f'paint-order="stroke fill"'        )
-        # Drop-shadow via a blurred, offset duplicate underneath
-        shadow_y = baseline + fs * 0.012
+        # Soft shadow: offset duplicate behind the main letter
+        sy = baseline + fs * 0.015
         shadow = (
-            f'<text '            f'x="{cx:.2f}" y="{shadow_y:.2f}" '            f'text-anchor="middle" '            f'font-family="{font_ref}" '            f'font-size="{fs:.2f}" font-weight="900" '            f'fill="{theme.stroke}" opacity="0.35" '            f'filter="url(#lb-blur)">'            f'{letter}</text>'        )
+            f'<text '
+            f'x="{cx:.2f}" y="{sy:.2f}" '
+            f'text-anchor="middle" dominant-baseline="auto" '
+            f'font-family="{font_ref}" '
+            f'font-size="{fs:.2f}" font-weight="900" '
+            f'fill="{theme.stroke}" opacity="0.30" '
+            f'filter="url(#lb-blur)">'
+            f'{letter}</text>'
+        )
+        text_el = (
+            f'<text '
+            f'x="{cx:.2f}" y="{baseline:.2f}" '
+            f'text-anchor="middle" dominant-baseline="auto" '
+            f'font-family="{font_ref}" '
+            f'font-size="{fs:.2f}" font-weight="900" '
+            f'fill="{theme.fill}" '
+            f'stroke="{theme.stroke}" stroke-width="10" '
+            f'paint-order="stroke fill">'
+            f'{letter}</text>'
+        )
 
-    blur_filter = (
-        '<filter id="lb-blur"><feGaussianBlur stdDeviation="6"/></filter>'
-    )
+    blur = '<filter id="lb-blur"><feGaussianBlur stdDeviation="5"/></filter>'
 
     return (
-        f'<svg xmlns="http://www.w3.org/2000/svg" '        f'viewBox="0 0 {W:.2f} {H:.2f}" '        f'width="{W:.2f}" height="{H:.2f}" '        f'style="position:absolute;inset:0;z-index:1;overflow:visible;">'        f'<defs>{blur_filter}</defs>'        f'{shadow}'        f'<text '        f'x="{cx:.2f}" y="{baseline:.2f}" '        f'text-anchor="middle" '        f'font-family="{font_ref}" '        f'font-size="{fs:.2f}" font-weight="900" '        f'{text_attrs}>'        f'{letter}</text>'        f'</svg>'    )
+        f'<svg xmlns="http://www.w3.org/2000/svg" '
+        f'viewBox="0 0 {W:.2f} {H:.2f}" '
+        f'width="{W:.2f}" height="{H:.2f}" '
+        f'style="position:absolute;inset:0;z-index:1;overflow:visible;">'
+        f'<defs>{blur}</defs>'
+        f'{shadow}'
+        f'{text_el}'
+        f'</svg>'
+    )
 
 
 def _build_page_html(
@@ -488,28 +539,81 @@ def _pdf_via_xhtml2pdf(html: str, output_path: Path) -> None:
     import re  # noqa: PLC0415
     from xhtml2pdf import pisa  # noqa: PLC0415
 
-    def _preprocess_for_xhtml2pdf(raw: str) -> str:
+    def _preprocess_for_xhtml2pdf(raw: str, w_in: float, h_in: float) -> str:
         """
-        Prepare HTML for xhtml2pdf rendering:
-        - Strip Google Fonts links (cannot reach external URLs at render time)
-        - Remove blur filter references (not supported)
-        - Convert absolutely-positioned SVG to block-level for better compat
+        Adapt the HTML for xhtml2pdf rendering:
+
+        Key differences from a browser:
+        - page-break-after CSS on divs is unreliable → use <pdf:nextpage/>
+        - position:absolute SVG is not supported → convert to block display
+        - Google Fonts URLs are not reachable → strip the link tag
+        - feGaussianBlur filter not supported → strip blur elements
+        - radial-gradient not supported → strip background-image
+        - Needs @page size rule and pdf namespace for page control
         """
-        # Strip Google Fonts links
+        # 1. Add pdf namespace to <html> tag
+        raw = raw.replace(
+            '<html lang="en">',
+            '<html lang="en" xmlns:pdf="http://namespaces.xhtml2pdf.com/ext">',
+            1
+        )
+
+        # 2. Inject @page size rule into the <style> block
+        page_rule = (
+            f'@page {{ size: {w_in}in {h_in}in; margin: 0in; }}\n'
+            f'body {{ margin: 0; padding: 0; }}\n'
+        )
+        raw = raw.replace('</style>', page_rule + '</style>', 1)
+
+        # 3. Strip Google Fonts links (no outbound HTTP in xhtml2pdf)
         raw = re.sub(r'<link[^>]+fonts\.googleapis\.com[^>]*>', '', raw)
-        # Remove inline filter CSS (feGaussianBlur not supported)
+
+        # 4. Strip blur filter (feGaussianBlur not supported)
         raw = re.sub(r'<filter[^>]*>.*?</filter>', '', raw, flags=re.DOTALL)
         raw = re.sub(r'filter="url\([^)]+\)"', '', raw)
-        # Remove position:absolute from SVG so xhtml2pdf flows it inline
+        raw = re.sub(r'opacity="0\.\d+"', '', raw)  # drop shadow opacity too
+
+        # 5. Convert absolute SVG to block-level so xhtml2pdf flows it
         raw = raw.replace(
             'style="position:absolute;inset:0;z-index:1;overflow:visible;"',
-            'style="display:block;margin:0 auto;"',
+            f'style="display:block;width:{w_in}in;height:{h_in}in;"',
         )
-        # Remove polka-dot radial-gradient (not supported; bg colour stays)
+
+        # 6. Strip unsupported CSS on .lb-page (position, overflow, flex)
+        #    Replace with simple block + explicit size + page break
+        raw = re.sub(
+            r'<div class="lb-page" style="([^"]*)"',
+            lambda m: '<div class="lb-page" style="'
+                + re.sub(r'(display|overflow|flex[^:]*|align[^:]*|justify[^:]*)'
+                         r':[^;]+;', '', m.group(1))
+                + f'display:block;page-break-after:always;'
+                  f'page-break-inside:avoid;"',
+            raw
+        )
+
+        # 7. Remove polka-dot radial-gradient
         raw = re.sub(r'background-image:radial-gradient\([^)]+\);', '', raw)
+
+        # 8. Insert <pdf:nextpage/> between consecutive lb-page divs
+        #    so xhtml2pdf definitely starts a new page for each letter
+        raw = re.sub(
+            r'(</div>)\s*(\n\s*<div class="lb-page")',
+            r'\1<pdf:nextpage/>\2',
+            raw
+        )
+
         return raw
 
-    clean = _preprocess_for_xhtml2pdf(html)
+    clean = _preprocess_for_xhtml2pdf(html, w_in=8.5, h_in=11.0)
+
+    # Extract paper size from HTML for correct @page rule
+    size_m = re.search(r'width:([\d.]+)in;height:([\d.]+)in', html)
+    if size_m:
+        clean = _preprocess_for_xhtml2pdf(
+            html,
+            w_in=float(size_m.group(1)),
+            h_in=float(size_m.group(2)),
+        )
 
     with open(output_path, "wb") as fh:
         result = pisa.CreatePDF(clean, dest=fh)

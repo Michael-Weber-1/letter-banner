@@ -1,6 +1,6 @@
 # 🔤 letter-banner
 
-<!-->
+<!--
 [![CI](https://github.com/Michael-Weber-1/letter-banner/actions/workflows/ci.yml/badge.svg)](https://github.com/Michael-Weber-1/letter-banner/actions)
 [![PyPI](https://img.shields.io/pypi/v/letter-banner.svg)](https://pypi.org/project/letter-banner/)
 [![Python](https://img.shields.io/pypi/pyversions/letter-banner.svg)](https://pypi.org/project/letter-banner/)
@@ -360,6 +360,37 @@ Use **any Google Font** by passing its exact family name:
 ```bash
 letter-banner "HELLO" --font "Baloo Bhaijaan 2"
 ```
+
+---
+
+## Letter size
+
+The `--font-size` option controls how much of the page the letter fills,
+expressed as a fraction of the page height.  Bigger is almost always better —
+the letters are meant to be large and bold.
+
+| Value | Effect |
+|---|---|
+| `0.95` | Default — fills most of the page |
+| `1.0` | Maximum height without clipping tall glyphs |
+| `1.1` | Slightly oversized; small descenders may clip |
+| `1.3` | Very large; best for single wide letters like W or M |
+
+```bash
+# Bigger letters — recommended starting point
+letter-banner "KIDS" --clean-white --font-size 1.0
+
+# Even bigger — good for single letters
+letter-banner "A" --clean-white --font-size 1.2
+
+# Python API
+save_banner("HELLO", BannerConfig(font_size=1.0))
+```
+
+> **Tip:** if a letter looks too small, just increase `--font-size` in steps
+> of 0.1 until it fills the page to your liking.  Values above 1.0 are fine —
+> the letter will simply bleed slightly outside the page boundary on
+> descenders (g, j, p, q, y) but caps and most letters print perfectly.
 
 ---
 

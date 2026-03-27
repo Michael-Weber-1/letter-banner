@@ -10,7 +10,15 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [Unreleased]
 
 ### Added
-- GitHub username updated to `Michael-Weber-1` across all files
+- **PDF one-page bug fixed**: xhtml2pdf now receives `<pdf:nextpage/>` tags
+  between letters and a correct `@page { size }` rule — each letter prints
+  on its own page
+- **Letter centering fixed**: SVG baseline calculated from cap-height (72% of em)
+  so the glyph body is visually centred on the page in all backends
+- **Font size maximised**: default raised to 0.95; width cap factor increased
+  to 1.35 so wide glyphs (W, M) grow larger before hitting the page edge
+- New `--font-size` / `font_size` documentation section in README with a
+  practical guide (0.95 default → 1.0 → 1.1 → 1.3) and examples
 - Letter now rendered as **inline SVG** in all modes (color + outline + image)
   using absolute `px` dimensions from paper size — eliminates `vh`/`vw` entirely
 - Font fills the full page correctly in every backend: browser, WeasyPrint,
