@@ -37,12 +37,17 @@ requires-python = ">=3.9"
 dependencies = []
 
 [project.optional-dependencies]
-pdf   = ["weasyprint>=60.0"]
-image = ["Pillow>=10.0"]
-heic  = ["Pillow>=10.0", "pillow-heif>=0.13"]
-all   = ["weasyprint>=60.0", "Pillow>=10.0", "pillow-heif>=0.13"]
+pdf        = ["weasyprint>=60.0"]
+pdf-win    = ["playwright>=1.40"]
+pdf-simple = ["xhtml2pdf>=0.2.11"]
+image      = ["Pillow>=10.0"]
+heic       = ["Pillow>=10.0", "pillow-heif>=0.13"]
+all        = ["weasyprint>=60.0", "playwright>=1.40", "xhtml2pdf>=0.2.11",
+              "Pillow>=10.0", "pillow-heif>=0.13"]
 dev   = [
     "weasyprint>=60.0",
+    "playwright>=1.40",
+    "xhtml2pdf>=0.2.11",
     "Pillow>=10.0",
     "pillow-heif>=0.13",
     "pytest>=7.4",

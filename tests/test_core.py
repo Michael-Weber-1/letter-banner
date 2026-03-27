@@ -183,12 +183,15 @@ class TestSaveBanner:
         assert content.count('class="lb-page"') == 5
 
     def test_no_pdf_without_weasyprint(self, tmp_path, monkeypatch):
-        """save_banner should not crash when neither PDF backend is available."""
+        """save_banner should not crash when all PDF backends are unavailable."""
         import builtins
         real_import = builtins.__import__
 
+        _blocked = {"weasyprint", "pdfkit", "xhtml2pdf"}
+
         def mock_import(name, *args, **kwargs):
-            if name in ("weasyprint", "pdfkit"):
+            # Block all known PDF backends
+            if name in _blocked or name.startswith("playwright"):
                 raise ImportError("mocked absence")
             return real_import(name, *args, **kwargs)
 

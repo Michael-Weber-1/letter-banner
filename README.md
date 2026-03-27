@@ -31,36 +31,61 @@ Perfect for birthdays, holidays, school events, weddings, graduations, baby show
 ## Installation
 
 ```bash
-# Minimal (HTML output only, no optional dependencies)
+# Minimal — HTML output only
 pip install letter-banner
 
-# With PDF support
-pip install "letter-banner[pdf]"
+# PDF on Windows (no admin rights needed)
+pip install "letter-banner[pdf-win]"
+playwright install chromium
 
-# With image support (resize + HEIC/HEIF)
-pip install "letter-banner[image]"
-# or
-pip install "letter-banner[heic]"
+# PDF on macOS / Linux
+pip install "letter-banner[pdf]"
+brew install pango          # macOS
+# Linux: sudo apt install libpango-1.0-0 libpangocairo-1.0-0
+
+# PDF anywhere, pure Python (limited CSS, no admin needed)
+pip install "letter-banner[pdf-simple]"
+
+# Image support (resize + HEIC/HEIF)
+pip install "letter-banner[image]"    # or [heic] for HEIC/HEIF
 
 # Everything
 pip install "letter-banner[all]"
+playwright install chromium   # still needed after [all]
 ```
 
-> **PDF on Windows** (recommended): install **pdfkit + wkhtmltopdf**
-> ```
-> pip install pdfkit
-> ```
-> Then download and install **wkhtmltopdf** from [wkhtmltopdf.org/downloads.html](https://wkhtmltopdf.org/downloads.html) and restart your terminal.
->
-> **PDF on macOS / Linux** (recommended): install **WeasyPrint**
-> ```
-> pip install weasyprint
-> brew install pango          # macOS
-> sudo apt install libpango-1.0-0 libpangocairo-1.0-0   # Linux
-> ```
->
-> Both backends can be installed at the same time — WeasyPrint is tried first,
-> pdfkit is the automatic fallback.
+### PDF backend — pick one
+
+The package tries four PDF backends automatically in order. Install whichever suits your setup:
+
+| Backend | Install | Admin needed? | Quality | Best for |
+|---|---|---|---|---|
+| **WeasyPrint** | `pip install weasyprint` + pango | Yes (pango) | ⭐⭐⭐⭐⭐ | macOS / Linux |
+| **Playwright** | `pip install playwright` + `playwright install chromium` | **No** | ⭐⭐⭐⭐⭐ | **Windows (work PC)** |
+| **pdfkit** | `pip install pdfkit` + wkhtmltopdf installer | Yes (wkhtmltopdf) | ⭐⭐⭐⭐ | Windows (personal PC) |
+| **xhtml2pdf** | `pip install xhtml2pdf` | **No** | ⭐⭐⭐ | Any OS, pure Python fallback |
+
+**Windows with no admin rights — use Playwright:**
+```bash
+pip install playwright
+playwright install chromium   # downloads ~130 MB to your user folder, no admin needed
+```
+
+**macOS / Linux — use WeasyPrint:**
+```bash
+pip install weasyprint
+brew install pango                                        # macOS
+sudo apt install libpango-1.0-0 libpangocairo-1.0-0      # Linux
+```
+
+**Any platform, no downloads at all — use xhtml2pdf:**
+```bash
+pip install xhtml2pdf
+# Note: Google Fonts are skipped; letters fall back to a system font.
+# The letter shape and layout print correctly.
+```
+
+All four backends can be installed simultaneously — the best available one is used automatically.
 
 ---
 

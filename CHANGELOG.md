@@ -14,8 +14,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `--clean-white` / `-W` shortcut: outline mode, white background, no decoration
 - `--filled` / `-F` shortcut: solid colour letter, white background, no decoration
 - Shortcuts can be overridden by any individual flag that follows them
-- Dual PDF backend: WeasyPrint tried first, **pdfkit + wkhtmltopdf** automatic fallback
-  — fixes `libgobject` crash on Windows; no GTK installation required
+- Four PDF backends tried automatically in order: WeasyPrint → Playwright → pdfkit → xhtml2pdf
+  — **Playwright** works on Windows with no admin rights (`pip install playwright && playwright install chromium`)
+  — **xhtml2pdf** is a pure-Python last resort (`pip install xhtml2pdf`), no binaries at all
+  — fixes `libgobject` / GTK crash on Windows
 - New example `examples/letter_only.py` covering all clean/outline output variants
 - `--page-bg` CLI flag and `BannerConfig.page_bg` field to override the page
   background colour on every letter page

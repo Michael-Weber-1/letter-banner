@@ -406,103 +406,186 @@ def _pdf_via_weasyprint(html: str, output_path: Path) -> None:
 
 
 def _pdf_via_pdfkit(html: str, output_path: Path) -> None:
-    """Render HTML → PDF using pdfkit + wkhtmltopdf."""
+    """Render HTML → PDF using pdfkit + wkhtmltopdf (must be on PATH)."""
     import pdfkit  # noqa: PLC0415
 
     options = {
-        "page-size":       "Letter",
-        "margin-top":      "0",
-        "margin-right":    "0",
-        "margin-bottom":   "0",
-        "margin-left":     "0",
-        "encoding":        "UTF-8",
+        "page-size":                "Letter",
+        "margin-top":               "0",
+        "margin-right":             "0",
+        "margin-bottom":            "0",
+        "margin-left":              "0",
+        "encoding":                 "UTF-8",
         "enable-local-file-access": "",
-        "no-outline":      "",
-        "print-media-type": "",
+        "no-outline":               "",
+        "print-media-type":         "",
     }
     pdfkit.from_string(html, str(output_path), options=options)
+
+
+def _pdf_via_playwright(html: str, output_path: Path) -> None:
+    """
+    Render HTML → PDF using Playwright + headless Chromium.
+
+    Playwright downloads its own bundled Chromium to the user home folder —
+    no admin rights or system install needed.
+
+    Install once:
+        pip install playwright
+        playwright install chromium
+    """
+    from playwright.sync_api import sync_playwright  # noqa: PLC0415
+
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch()
+        page    = browser.new_page()
+        page.set_content(html, wait_until="networkidle")
+        page.pdf(
+            path=str(output_path),
+            print_background=True,
+            margin={"top": "0", "right": "0", "bottom": "0", "left": "0"},
+        )
+        browser.close()
+
+
+def _pdf_via_xhtml2pdf(html: str, output_path: Path) -> None:
+    """
+    Render HTML → PDF using xhtml2pdf — 100% pure Python, no binaries.
+
+    Install:  pip install xhtml2pdf
+
+    Note: CSS support is limited (no Google Fonts, basic layout only).
+    The letter shape will still print correctly; decorative fonts fall back
+    to a system serif.  For best quality use Playwright instead.
+    """
+    from xhtml2pdf import pisa  # noqa: PLC0415
+
+    # xhtml2pdf cannot fetch remote Google Fonts; strip the link tag so it
+    # degrades gracefully to system fonts instead of erroring.
+    import re  # noqa: PLC0415
+    clean = re.sub(r'<link[^>]+fonts\.googleapis\.com[^>]*>', '', html)
+
+    with open(output_path, "wb") as fh:
+        result = pisa.CreatePDF(clean, dest=fh)
+
+    if result.err:
+        raise RuntimeError(f"xhtml2pdf reported errors: {result.err}")
 
 
 def generate_pdf(html: str, output_path: str | Path) -> None:
     """
     Render an HTML string to a PDF file.
 
-    Tries **WeasyPrint** first, then falls back to **pdfkit + wkhtmltopdf**.
-    At least one must be available.
+    Tries four backends in order, using the first one that works:
+
+    1. **WeasyPrint**   — best quality on macOS / Linux
+    2. **Playwright**   — best quality on Windows (pip-only, no admin needed)
+    3. **pdfkit**       — good quality, needs wkhtmltopdf installed separately
+    4. **xhtml2pdf**    — pure Python fallback, basic CSS only
 
     Parameters
     ----------
     html        : Complete HTML document string (from :func:`generate_html`).
     output_path : Destination ``.pdf`` file path.
 
-    Installation
-    ------------
-    **Option A — WeasyPrint** (recommended on macOS / Linux):
+    Windows quick start (no admin rights needed)
+    --------------------------------------------
+    .. code-block:: bash
 
+        pip install playwright
+        playwright install chromium   # downloads ~130 MB to your user folder
+
+    macOS / Linux quick start
+    -------------------------
     .. code-block:: bash
 
         pip install weasyprint
-        # macOS:  brew install pango
-        # Linux:  sudo apt install libpango-1.0-0 libpangocairo-1.0-0
+        brew install pango            # macOS only
+        # Linux: sudo apt install libpango-1.0-0 libpangocairo-1.0-0
 
-    **Option B — pdfkit** (recommended on Windows):
-
+    Pure-Python fallback (any OS, limited CSS)
+    ------------------------------------------
     .. code-block:: bash
 
-        pip install pdfkit
-        # Then download and install wkhtmltopdf from https://wkhtmltopdf.org/downloads.html
-        # Make sure wkhtmltopdf is on your PATH (restart terminal after install)
-
-    Both can be installed at the same time; WeasyPrint is tried first.
+        pip install xhtml2pdf
 
     Raises
     ------
     RuntimeError
-        If neither WeasyPrint nor pdfkit is available or functional.
+        If no working PDF backend is found.
     """
     output_path = Path(output_path)
     errors: list[str] = []
 
-    # ── Try WeasyPrint ───────────────────────────────────────────────────────
+    # ── 1. WeasyPrint ────────────────────────────────────────────────────────
     try:
         _pdf_via_weasyprint(html, output_path)
         return
     except ImportError:
-        errors.append("WeasyPrint not installed  (pip install weasyprint)")
+        errors.append("WeasyPrint not installed  →  pip install weasyprint")
     except Exception as exc:
         errors.append(
-            f"WeasyPrint failed: {exc}\n"
-            "  Windows fix: install GTK runtime from "
-            "https://github.com/tschoonj/GTK-for-Windows-Runtime-Environment-Installer/releases\n"
-            "  Or use pdfkit instead: pip install pdfkit + install wkhtmltopdf"
+            f"WeasyPrint failed ({exc.__class__.__name__}: {exc})\n"
+            "  macOS/Linux fix: make sure pango is installed.\n"
+            "  Windows:         use Playwright instead (see below)."
         )
 
-    # ── Try pdfkit ───────────────────────────────────────────────────────────
+    # ── 2. Playwright ────────────────────────────────────────────────────────
+    try:
+        _pdf_via_playwright(html, output_path)
+        return
+    except ImportError:
+        errors.append(
+            "Playwright not installed  →  pip install playwright\n"
+            "  Then run once:           playwright install chromium"
+        )
+    except Exception as exc:
+        errors.append(
+            f"Playwright failed ({exc.__class__.__name__}: {exc})\n"
+            "  Run: playwright install chromium"
+        )
+
+    # ── 3. pdfkit + wkhtmltopdf ──────────────────────────────────────────────
     try:
         _pdf_via_pdfkit(html, output_path)
         return
     except ImportError:
-        errors.append(
-            "pdfkit not installed  (pip install pdfkit)\n"
-            "  Also install wkhtmltopdf from https://wkhtmltopdf.org/downloads.html"
-        )
+        errors.append("pdfkit not installed  →  pip install pdfkit")
     except OSError:
         errors.append(
-            "pdfkit: wkhtmltopdf not found on PATH.\n"
-            "  Download from https://wkhtmltopdf.org/downloads.html and restart your terminal."
+            "pdfkit: wkhtmltopdf binary not found on PATH.\n"
+            "  Download from https://wkhtmltopdf.org/downloads.html"
         )
     except Exception as exc:
-        errors.append(f"pdfkit failed: {exc}")
+        errors.append(f"pdfkit failed ({exc.__class__.__name__}: {exc})")
 
-    # ── Both failed ──────────────────────────────────────────────────────────
-    msg = "\n\n".join(f"  [{i+1}] {e}" for i, e in enumerate(errors))
+    # ── 4. xhtml2pdf ─────────────────────────────────────────────────────────
+    try:
+        _pdf_via_xhtml2pdf(html, output_path)
+        return
+    except ImportError:
+        errors.append(
+            "xhtml2pdf not installed  →  pip install xhtml2pdf\n"
+            "  (pure Python, no admin rights needed, limited CSS)"
+        )
+    except Exception as exc:
+        errors.append(f"xhtml2pdf failed ({exc.__class__.__name__}: {exc})")
+
+    # ── All backends failed ───────────────────────────────────────────────────
+    attempts = "\n\n".join(f"  [{i+1}] {e}" for i, e in enumerate(errors))
     raise RuntimeError(
         "PDF generation failed — no working PDF backend found.\n\n"
-        + msg +
-        "\n\nQuick fix on Windows:\n"
-        "  1. pip install pdfkit\n"
-        "  2. Download wkhtmltopdf from https://wkhtmltopdf.org/downloads.html\n"
-        "  3. Install it and restart your terminal.\n"
+        + attempts +
+        "\n\n"
+        "Recommended fix (Windows, no admin rights):\n"
+        "  pip install playwright\n"
+        "  playwright install chromium\n\n"
+        "Recommended fix (macOS / Linux):\n"
+        "  pip install weasyprint\n"
+        "  brew install pango           # macOS\n"
+        "  sudo apt install libpango-1.0-0 libpangocairo-1.0-0  # Linux\n\n"
+        "Simplest fix (any platform, pure Python):\n"
+        "  pip install xhtml2pdf\n"
     )
 
 
